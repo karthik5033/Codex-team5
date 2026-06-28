@@ -14,7 +14,11 @@
       "patternType": "regular"
     },
     "dialogue": {
-      "intro": { "speaker": "antagonist", "text": "You're walking the wrong street tonight, friend." },
+      "intro": [
+        { "speaker": "antagonist", "text": "You're walking the wrong street tonight, friend." },
+        { "speaker": "player", "text": "I don't have time for this." },
+        { "speaker": "antagonist", "text": "You're gonna make time." }
+      ],
       "partial": { "speaker": "player", "text": "Whoa, take it easy. I'm just passing through." },
       "win": { "speaker": "player", "text": "Step aside." },
       "fail": { "speaker": "antagonist", "text": "Too slow to speak, too slow to fight." },
@@ -36,7 +40,12 @@
       "patternType": "two-track"
     },
     "dialogue": {
-      "intro": { "speaker": "antagonist", "text": "Look who decided to show up. Empty your pockets." },
+      "intro": [
+        { "speaker": "antagonist", "text": "Look who decided to show up. Empty your pockets." },
+        { "speaker": "player", "text": "There are three of you, and one of me." },
+        { "speaker": "antagonist", "text": "Yeah, and we brought a knife." },
+        { "speaker": "player", "text": "You should've brought a gun." }
+      ],
       "partial": { "speaker": "player", "text": "Just take what you need and let me go." },
       "win": { "speaker": "player", "text": "I'm not looking for trouble. But I ain't backing down." },
       "fail": { "speaker": "antagonist", "text": "Shut your mouth and put 'em up!" },
@@ -58,12 +67,68 @@
       "patternType": "irregular"
     },
     "dialogue": {
-      "intro": { "speaker": "antagonist", "text": "It all comes down to this. Nothing left to say." },
+      "intro": [
+        { "speaker": "antagonist", "text": "It all comes down to this. Nothing left to say." },
+        { "speaker": "player", "text": "You made this personal." },
+        { "speaker": "antagonist", "text": "It's always been personal." }
+      ],
       "partial": { "speaker": "player", "text": "We don't have to do this. We used to be friends." },
       "win": { "speaker": "player", "text": "It's over. I'm walking away." },
       "fail": { "speaker": "antagonist", "text": "Silence. I knew you'd never change." },
       "conditional_fail": { "speaker": "antagonist", "text": "I can see the fear in your eyes." },
       "timeout": { "speaker": "antagonist", "text": "No words? Then let our fists do the talking." }
+    }
+  },
+  {
+    "id": 4,
+    "name": "The Subway",
+    "decisionWindow": 4000,
+    "tapWindows": [
+      { "start": 0, "end": 2000, "outcome": "fail" },
+      { "start": 2000, "end": 3500, "outcome": "win" },
+      { "start": 3500, "end": 4000, "outcome": "partial" }
+    ],
+    "fightConfig": {
+      "lossMeterSize": 3,
+      "bpm": 140,
+      "patternType": "regular"
+    },
+    "dialogue": {
+      "intro": [
+        { "speaker": "antagonist", "text": "End of the line. The Syndicate sends their regards." },
+        { "speaker": "player", "text": "I'm not going down here." },
+        { "speaker": "antagonist", "text": "You're already underground." }
+      ],
+      "partial": { "speaker": "player", "text": "We can both walk away from this." },
+      "win": { "speaker": "player", "text": "Tell your boss I'm coming for him." },
+      "fail": { "speaker": "antagonist", "text": "Train's leaving... and you're not on it." },
+      "timeout": { "speaker": "antagonist", "text": "Too scared to fight? We'll make it quick." }
+    }
+  },
+  {
+    "id": 5,
+    "name": "The Syndicate",
+    "decisionWindow": 3000,
+    "tapWindows": [
+      { "start": 0, "end": 1000, "outcome": "fail" },
+      { "start": 1000, "end": 2500, "outcome": "win" },
+      { "start": 2500, "end": 3000, "outcome": "partial" }
+    ],
+    "fightConfig": {
+      "lossMeterSize": 2,
+      "bpm": 160,
+      "patternType": "irregular"
+    },
+    "dialogue": {
+      "intro": [
+        { "speaker": "antagonist", "text": "So you're the one tearing apart my city." },
+        { "speaker": "player", "text": "I'm the one burning it down." },
+        { "speaker": "antagonist", "text": "Let's see if you can take the heat." }
+      ],
+      "partial": { "speaker": "player", "text": "You fought well... but it's over." },
+      "win": { "speaker": "player", "text": "The city belongs to the people now." },
+      "fail": { "speaker": "antagonist", "text": "Another rat caught in the trap." },
+      "timeout": { "speaker": "antagonist", "text": "Disappointing." }
     }
   }
 ]

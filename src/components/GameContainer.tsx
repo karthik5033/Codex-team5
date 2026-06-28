@@ -21,6 +21,12 @@ export function GameContainer() {
   const { state, dispatch } = useGameState();
   const { evaluateTap, currentScene, timeElapsed, outcome } = useSceneManager();
   const [showTitle, setShowTitle] = useState(true);
+  const [introIndex, setIntroIndex] = useState(0);
+
+  // Reset intro index when scene changes
+  useEffect(() => {
+    setIntroIndex(0);
+  }, [state.currentSceneId]);
 
   const lockedUntilRef = useRef(0);
 
@@ -37,6 +43,17 @@ export function GameContainer() {
 
       const s = state.currentState;
 
+      // SCENE_INTRO → advance dialogue, then go to DECISION_WINDOW
+      if (s === GameState.SCENE_INTRO) {
+        lockInput(300);
+        if (introIndex < currentScene.dialogue.intro.length - 1) {
+          setIntroIndex(prev => prev + 1);
+        } else {
+          dispatch({ type: 'TRANSITION', payload: GameState.DECISION_WINDOW });
+        }
+        return;
+      }
+
       // DECISION_WINDOW → tap = evaluate, hold = fight
       if (s === GameState.DECISION_WINDOW) {
         lockInput(500);
@@ -52,7 +69,7 @@ export function GameContainer() {
       if (s === GameState.OUTCOME_TAP) {
         lockInput(500);
         if (outcome === 'win' || outcome === 'partial') {
-          if (currentScene.id >= 3) {
+          if (currentScene.id >= 5) {
             dispatch({ type: 'TRANSITION', payload: GameState.GAME_WIN });
           } else {
             dispatch({ type: 'NEXT_SCENE' });
@@ -67,7 +84,7 @@ export function GameContainer() {
       // SCENE_END (after winning a fight) → next scene
       if (s === GameState.SCENE_END) {
         lockInput(500);
-        if (currentScene.id >= 3) {
+        if (currentScene.id >= 5) {
           dispatch({ type: 'TRANSITION', payload: GameState.GAME_WIN });
         } else {
           dispatch({ type: 'NEXT_SCENE' });
@@ -93,12 +110,11 @@ export function GameContainer() {
   );
 
   // Active for every state EXCEPT fight active (FightMinigame has its own handler)
-  // and fight init / scene intro (auto-transitions)
+  // and fight init (auto-transitions)
   const inputActive =
     !showTitle &&
     state.currentState !== GameState.FIGHT_ACTIVE &&
-    state.currentState !== GameState.FIGHT_INIT &&
-    state.currentState !== GameState.SCENE_INTRO; // SCENE_INTRO auto-advances now
+    state.currentState !== GameState.FIGHT_INIT;
 
   useInputHandler(inputActive, handleInput);
 
@@ -151,6 +167,7 @@ export function GameContainer() {
         currentScene={currentScene}
         timeElapsed={timeElapsed}
         outcome={outcome}
+        introIndex={introIndex}
       />
 
       {state.currentState === GameState.FIGHT_INIT && (

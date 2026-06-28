@@ -9,23 +9,15 @@ interface UIOverlayProps {
   currentScene: SceneConfig;
   timeElapsed: number;
   outcome: string | null;
+  introIndex: number;
 }
 
-export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps) {
+export function UIOverlay({ currentScene, timeElapsed, outcome, introIndex }: UIOverlayProps) {
   const { state, dispatch } = useGameState();
 
   const isIntro = state.currentState === GameState.SCENE_INTRO;
   const isDecision = state.currentState === GameState.DECISION_WINDOW;
   const isOutcome = state.currentState === GameState.OUTCOME_TAP;
-
-  // Auto-advance from intro after 3 seconds
-  useEffect(() => {
-    if (!isIntro) return;
-    const timer = setTimeout(() => {
-      dispatch({ type: 'TRANSITION', payload: GameState.DECISION_WINDOW });
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [isIntro, dispatch]);
 
   const tensionRatio = useMemo(
     () => (isDecision ? Math.min(timeElapsed / currentScene.decisionWindow, 1) : 0),
@@ -45,7 +37,7 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
   // Determine current dialogue line based on state
   let currentDialogueObj = null;
   if (isIntro) {
-    currentDialogueObj = currentScene.dialogue.intro;
+    currentDialogueObj = currentScene.dialogue.intro[introIndex];
   } else if (isOutcome && outcome) {
     // @ts-ignore - TS might complain about dynamic key access
     currentDialogueObj = currentScene.dialogue[outcome] || currentScene.dialogue.fail;
@@ -55,7 +47,9 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
   const bgImage = 
     currentScene.id === 1 ? '/assets/bg_scene1.png' :
     currentScene.id === 2 ? '/assets/bg_scene2.png' :
-    '/assets/bg_scene3.png';
+    currentScene.id === 3 ? '/assets/bg_scene3.png' :
+    currentScene.id === 4 ? '/assets/bg_scene4.png' :
+    '/assets/bg_scene5.png';
 
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-between pointer-events-none">
@@ -85,7 +79,7 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
       <div className="w-full p-6 md:p-10 flex justify-between items-start z-10">
         <div className="animate-fadeIn">
           <p className="text-[10px] tracking-[0.5em] uppercase text-gray-400 mb-1 drop-shadow-md">
-            Scene {currentScene.id} of 3
+            Scene {currentScene.id} of 5
           </p>
           <h1 className="font-display text-4xl md:text-5xl tracking-[0.15em] text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
             {currentScene.name}
@@ -137,11 +131,10 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
       {/* ── Bottom Prompts ────────────────── */}
       <div className="w-full p-6 md:p-10 flex justify-center z-10 h-32 items-end">
         {isIntro && (
-          <div className="animate-fadeIn">
-            <p className="text-gray-400 text-xs uppercase tracking-[0.3em] font-bold animate-pulse drop-shadow-md">
-              Get Ready&hellip;
-            </p>
-          </div>
+          <OneButtonPrompt
+            text="PRESS SPACE TO CONTINUE"
+            delayMs={400}
+          />
         )}
 
         {isDecision && (
@@ -246,12 +239,16 @@ function ImageScene({
   const antagonistImage = 
     sceneId === 1 ? '/assets/char_stranger.png' :
     sceneId === 2 ? '/assets/char_crew.png' :
-    '/assets/char_boss.png';
+    sceneId === 3 ? '/assets/char_boss.png' :
+    sceneId === 4 ? '/assets/char_thugs.png' :
+    '/assets/char_mastermind.png';
 
   const antagonistName = 
     sceneId === 1 ? 'Stranger' :
     sceneId === 2 ? 'The Crew' :
-    'The Boss';
+    sceneId === 3 ? 'The Boss' :
+    sceneId === 4 ? 'Syndicate' :
+    'Mastermind';
 
   return (
     <div className={`relative w-full max-w-5xl mx-auto ${shakeIntensity}`}>

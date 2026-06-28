@@ -265,20 +265,27 @@ export function FightMinigame() {
   }, [dispatch, lossMeterSize]);
 
   // Determine images
+  // Determine images
   const bgImage = 
     currentScene.id === 1 ? '/assets/bg_scene1.png' :
     currentScene.id === 2 ? '/assets/bg_scene2.png' :
-    '/assets/bg_scene3.png';
+    currentScene.id === 3 ? '/assets/bg_scene3.png' :
+    currentScene.id === 4 ? '/assets/bg_scene4.png' :
+    '/assets/bg_scene5.png';
 
   const antagonistImage = 
     currentScene.id === 1 ? '/assets/char_stranger.png' :
     currentScene.id === 2 ? '/assets/char_crew.png' :
-    '/assets/char_boss.png';
+    currentScene.id === 3 ? '/assets/char_boss.png' :
+    currentScene.id === 4 ? '/assets/char_thugs.png' :
+    '/assets/char_mastermind.png';
 
   const antagonistName = 
     currentScene.id === 1 ? 'Stranger' :
     currentScene.id === 2 ? 'The Crew' :
-    'The Boss';
+    currentScene.id === 3 ? 'The Boss' :
+    currentScene.id === 4 ? 'Syndicate' :
+    'Mastermind';
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col justify-between bg-black/90 scanlines font-sans overflow-hidden">
