@@ -1,18 +1,31 @@
 'use client';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { useGameState } from '../hooks/useGameState';
-import { useSceneManager } from '../hooks/useSceneManager';
 import { GameState } from '../lib/gameState';
+import type { SceneConfig } from '../hooks/useSceneManager';
 
-export function UIOverlay() {
-  const { state } = useGameState();
-  const { currentScene, timeElapsed, outcome } = useSceneManager();
+interface UIOverlayProps {
+  currentScene: SceneConfig;
+  timeElapsed: number;
+  outcome: string | null;
+}
 
-  const isDecision = state.currentState === GameState.DECISION_WINDOW;
+export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps) {
+  const { state, dispatch } = useGameState();
+
   const isIntro = state.currentState === GameState.SCENE_INTRO;
+  const isDecision = state.currentState === GameState.DECISION_WINDOW;
   const isOutcome = state.currentState === GameState.OUTCOME_TAP;
-  const isSceneEnd = state.currentState === GameState.SCENE_END;
+
+  // Auto-advance from intro after 3 seconds — no button click needed
+  useEffect(() => {
+    if (!isIntro) return;
+    const timer = setTimeout(() => {
+      dispatch({ type: 'TRANSITION', payload: GameState.DECISION_WINDOW });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [isIntro, dispatch]);
 
   const tensionRatio = useMemo(
     () => (isDecision ? Math.min(timeElapsed / currentScene.decisionWindow, 1) : 0),
@@ -27,7 +40,7 @@ export function UIOverlay() {
     [isDecision, currentScene.decisionWindow, timeElapsed]
   );
 
-  if (!isDecision && !isIntro && !isOutcome && !isSceneEnd) return null;
+  if (!isDecision && !isIntro && !isOutcome) return null;
 
   // Render Background
   const bgImage = 
@@ -108,6 +121,9 @@ export function UIOverlay() {
                 &ldquo;{currentScene.dialogue.intro}&rdquo;
               </p>
             </div>
+            <p className="text-gray-500 text-xs uppercase tracking-widest mt-6 animate-pulse">
+              Preparing&hellip;
+            </p>
           </div>
         )}
 
@@ -123,27 +139,10 @@ export function UIOverlay() {
             dialogue={currentScene.dialogue[outcome as keyof typeof currentScene.dialogue] || currentScene.dialogue.fail}
           />
         )}
-
-        {isSceneEnd && (
-          <div className="text-center animate-fadeIn">
-            <div className="p-8 rounded-lg border border-green-900/60 bg-black/70 backdrop-blur-md shadow-2xl max-w-lg">
-              <p className="font-display text-3xl text-green-400 tracking-wider mb-4">SURVIVED</p>
-              <p className="text-gray-300 italic">You made it through. Barely.</p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Bottom Prompts ────────────────── */}
       <div className="w-full p-6 md:p-10 flex justify-center z-10">
-        {isIntro && (
-          <OneButtonPrompt
-            text="PRESS SPACE TO BEGIN"
-            delayMs={800}
-            glow
-          />
-        )}
-
         {isDecision && (
           <div className="text-center animate-fadeIn" style={{ animationDelay: '0.5s', animationFillMode: 'both' }}>
             <div className="flex gap-12 items-center bg-black/60 px-8 py-4 rounded-xl backdrop-blur-sm border border-gray-800">
@@ -166,14 +165,10 @@ export function UIOverlay() {
 
         {isOutcome && (
           <OneButtonPrompt
-            text={outcome === 'fail' || outcome === 'timeout' ? 'PRESS SPACE TO FIGHT' : 'PRESS SPACE TO CONTINUE'}
+            text={outcome === 'fail' || outcome === 'timeout' || outcome === 'conditional_fail' ? 'PRESS SPACE TO FIGHT' : 'PRESS SPACE TO CONTINUE'}
             delayMs={1200}
-            glow={outcome === 'fail' || outcome === 'timeout'}
+            glow={outcome === 'fail' || outcome === 'timeout' || outcome === 'conditional_fail'}
           />
-        )}
-
-        {isSceneEnd && (
-          <OneButtonPrompt text="PRESS SPACE TO CONTINUE" delayMs={1000} />
         )}
       </div>
     </div>
@@ -316,6 +311,13 @@ function OutcomeDisplay({
       text: 'text-red-200',
       badge: 'bg-red-900 text-red-300 border-red-700',
       label: 'HESITATION',
+    },
+    conditional_fail: {
+      border: 'border-red-600/50',
+      bg: 'bg-red-950/70',
+      text: 'text-red-200',
+      badge: 'bg-red-900 text-red-300 border-red-700',
+      label: 'UNPREPARED',
     },
   };
 

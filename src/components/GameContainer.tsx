@@ -14,27 +14,13 @@ import { GameOverScreen } from './GameOverScreen';
  * Every screen transition is controlled by Spacebar or Left-Click.
  * No mouse-targeted buttons exist anywhere — only visual prompts
  * telling the player to press the one button.
- *
- * Flow:
- *   Title          → SPACE tap  → Scene Intro
- *   Scene Intro    → SPACE tap  → Decision Window
- *   Decision       → SPACE tap  → Evaluate tap outcome
- *                  → SPACE hold → Fight
- *   Outcome        → SPACE tap  → Next scene / Fight
- *   Scene End      → SPACE tap  → Next scene / Win
- *   Fight Init     → (auto)     → Fight Active
- *   Fight Active   → (handled by FightMinigame)
- *   Game Over      → SPACE tap  → Restart
- *   Game Win       → SPACE tap  → Restart
  */
 
 export function GameContainer() {
   const { state, dispatch } = useGameState();
-  const { evaluateTap, outcome, currentScene } = useSceneManager();
+  const { evaluateTap, currentScene, timeElapsed, outcome } = useSceneManager();
   const [showTitle, setShowTitle] = useState(true);
 
-  // Guard: prevent accidental double-presses after a state change.
-  // After each transition we lock input for a short "cooldown" window.
   const lockedUntilRef = useRef(0);
 
   const lockInput = useCallback((ms: number) => {
@@ -49,13 +35,6 @@ export function GameContainer() {
       if (isLocked()) return;
 
       const s = state.currentState;
-
-      // SCENE_INTRO → start decision window
-      if (s === GameState.SCENE_INTRO) {
-        lockInput(400);
-        dispatch({ type: 'TRANSITION', payload: GameState.DECISION_WINDOW });
-        return;
-      }
 
       // DECISION_WINDOW → tap = evaluate, hold = fight
       if (s === GameState.DECISION_WINDOW) {
@@ -113,11 +92,12 @@ export function GameContainer() {
   );
 
   // Active for every state EXCEPT fight active (FightMinigame has its own handler)
-  // and fight init (auto-transitions)
+  // and fight init / scene intro (auto-transitions)
   const inputActive =
     !showTitle &&
     state.currentState !== GameState.FIGHT_ACTIVE &&
-    state.currentState !== GameState.FIGHT_INIT;
+    state.currentState !== GameState.FIGHT_INIT &&
+    state.currentState !== GameState.SCENE_INTRO; // SCENE_INTRO auto-advances now
 
   useInputHandler(inputActive, handleInput);
 
@@ -149,7 +129,6 @@ export function GameContainer() {
   // Lock input briefly when entering a new state so the player reads the screen
   useEffect(() => {
     const st = state.currentState;
-    if (st === GameState.SCENE_INTRO) lockInput(800);
     if (st === GameState.OUTCOME_TAP) lockInput(1200);
     if (st === GameState.SCENE_END) lockInput(1000);
     if (st === GameState.GAME_OVER) lockInput(2000);
@@ -162,16 +141,41 @@ export function GameContainer() {
 
   return (
     <div
-      className="relative w-screen h-screen overflow-hidden bg-black text-white select-none scanlines"
+      className="relative w-screen h-screen overflow-hidden bg-black text-white select-none scanlines font-sans"
     >
       <div className="noise-overlay" />
       <div className="vignette" />
 
-      <UIOverlay />
+      <UIOverlay 
+        currentScene={currentScene}
+        timeElapsed={timeElapsed}
+        outcome={outcome}
+      />
 
-      {state.currentState === GameState.FIGHT_INIT && <FightInitScreen />}
+      {state.currentState === GameState.FIGHT_INIT && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black">
+          <div
+            className="absolute inset-0 bg-red-900/80"
+            style={{ animation: 'fightFlash 1.5s ease-out forwards' }}
+          />
+          <h1
+            className="relative z-10 font-display text-[10rem] text-white tracking-[0.2em] drop-shadow-[0_0_80px_rgba(220,38,38,1)]"
+            style={{ animation: 'heartbeat 0.6s ease-in-out infinite' }}
+          >
+            FIGHT
+          </h1>
+          <FightTransition />
+        </div>
+      )}
+
       {state.currentState === GameState.FIGHT_ACTIVE && <FightMinigame />}
+
+      {state.currentState === GameState.SCENE_END && (
+        <SceneEndTransition />
+      )}
+
       {state.currentState === GameState.GAME_OVER && <GameOverScreen />}
+      
       {state.currentState === GameState.GAME_WIN && <GameWinScreen />}
     </div>
   );
@@ -198,7 +202,6 @@ function TitleScreen() {
           One Button &nbsp;·&nbsp; Street Confrontation &nbsp;·&nbsp; No Escape
         </p>
 
-        {/* Visual-only prompt (not a clickable button) */}
         <div
           className="mt-16 animate-fadeIn"
           style={{ animationDelay: '1.8s', animationFillMode: 'both' }}
@@ -219,29 +222,37 @@ function TitleScreen() {
   );
 }
 
-/* ── Fight Init Flash ─────────────────────── */
-function FightInitScreen() {
+/* ── Fight Transition Helper ──────────────── */
+function FightTransition() {
   const { dispatch } = useGameState();
 
   useEffect(() => {
     const timer = setTimeout(() => {
       dispatch({ type: 'TRANSITION', payload: GameState.FIGHT_ACTIVE });
-    }, 1800);
+    }, 1500);
     return () => clearTimeout(timer);
   }, [dispatch]);
 
+  return null;
+}
+
+/* ── Scene End Screen ─────────────────────── */
+function SceneEndTransition() {
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black">
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
+      <p className="font-display text-5xl text-green-400 tracking-widest uppercase font-bold animate-pulse mb-8">
+        You survived.
+      </p>
+      
+      {/* Visual-only prompt */}
       <div
-        className="absolute inset-0 bg-red-900/80"
-        style={{ animation: 'fightFlash 1.8s ease-out forwards' }}
-      />
-      <h1
-        className="relative z-10 font-display text-[10rem] text-white tracking-[0.2em] drop-shadow-[0_0_80px_rgba(220,38,38,1)]"
-        style={{ animation: 'heartbeat 0.6s ease-in-out infinite' }}
+        className="mt-16 animate-fadeIn"
+        style={{ animationDelay: '1s', animationFillMode: 'both' }}
       >
-        FIGHT
-      </h1>
+        <div className="inline-block px-8 py-3 border border-gray-700 text-gray-400 font-display text-xl tracking-[0.3em] uppercase">
+          PRESS SPACE
+        </div>
+      </div>
     </div>
   );
 }

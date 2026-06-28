@@ -1,197 +1,285 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGameState } from '../hooks/useGameState';
 import { useSceneManager } from '../hooks/useSceneManager';
 import { GameState } from '../lib/gameState';
 
+const TOTAL_BEATS = 12;
+const HIT_WINDOW = 150; // ms
+
 type Beat = {
-  id: number;
-  time: number;       // ms from fight start when this beat fires
-  hit: boolean;       // was it hit?
-  missed: boolean;    // was it missed?
-  active: boolean;    // is it the current beat?
+  timestamp: number;
+  hit: boolean;
+  missed: boolean;
+  pulsed: boolean;
 };
 
+function generateBeats(bpm: number, patternType: string): number[] {
+  const interval = 60000 / bpm;
+  const out: number[] = [];
+
+  if (patternType === 'two-track') {
+    let count = 0;
+    for (let i = 1; count < TOTAL_BEATS; i++) {
+      out.push(i * interval);
+      count++;
+      if (count < TOTAL_BEATS) {
+        out.push(i * interval + 200);
+        count++;
+      }
+    }
+    out.sort((a, b) => a - b);
+  } else if (patternType === 'irregular') {
+    let t = 0;
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+      const v = 0.7 + Math.random() * 0.6; // ±30% of interval
+      t += interval * v;
+      out.push(t);
+    }
+  } else {
+    // regular
+    for (let i = 1; i <= TOTAL_BEATS; i++) {
+      out.push(i * interval);
+    }
+  }
+
+  return out.slice(0, TOTAL_BEATS);
+}
+
 export function FightMinigame() {
-  const { state, dispatch } = useGameState();
+  const { dispatch } = useGameState();
   const { currentScene } = useSceneManager();
 
+  const [hitsLanded, setHitsLanded] = useState(0);
   const [lossMeter, setLossMeter] = useState(0);
-  const [beatsHit, setBeatsHit] = useState(0);
-  const [totalBeats] = useState(12); // beats needed to win
-  const [currentBeatActive, setCurrentBeatActive] = useState(false);
-  const [hitFeedback, setHitFeedback] = useState<'none' | 'hit' | 'miss'>('none');
-  const [combo, setCombo] = useState(0);
-  const fightStartRef = useRef(Date.now());
-  const beatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const maxLoss = currentScene.fightConfig.lossMeterSize;
-  const bpm = currentScene.fightConfig.bpm;
-  const beatInterval = (60 / bpm) * 1000; // ms between beats
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const beatsRef = useRef<Beat[]>([]);
+  const startRef = useRef(0);
+  const hitsRef = useRef(0);
+  const lossRef = useRef(0);
+  const animRef = useRef(0);
+  const lastPulseElapsed = useRef(-9999);
+  const hitFlashElapsed = useRef(-9999);
+  const missFlashElapsed = useRef(-9999);
+  const endDispatched = useRef(false);
 
-  // Generate beat windows
+  const { bpm, patternType, lossMeterSize } = currentScene.fightConfig;
+
+  // Init beats on mount
   useEffect(() => {
-    let beatCount = 0;
+    const timestamps = generateBeats(bpm, patternType);
+    beatsRef.current = timestamps.map(ts => ({
+      timestamp: ts,
+      hit: false,
+      missed: false,
+      pulsed: false,
+    }));
+    startRef.current = Date.now();
+    hitsRef.current = 0;
+    lossRef.current = 0;
+    endDispatched.current = false;
+    lastPulseElapsed.current = -9999;
+    hitFlashElapsed.current = -9999;
+    missFlashElapsed.current = -9999;
 
-    beatTimerRef.current = setInterval(() => {
-      beatCount++;
-      setCurrentBeatActive(true);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [bpm, patternType]);
 
-      // Auto-miss after hit window closes (300ms)
-      setTimeout(() => {
-        setCurrentBeatActive((active) => {
-          if (active) {
-            // Player missed this beat
-            setHitFeedback('miss');
-            setLossMeter((m) => m + 1);
-            setCombo(0);
-            setTimeout(() => setHitFeedback('none'), 400);
-            return false;
-          }
-          return false;
-        });
-      }, 300); // 150ms either side = 300ms window
-
-      if (beatCount >= totalBeats + maxLoss) {
-        if (beatTimerRef.current) clearInterval(beatTimerRef.current);
-      }
-    }, beatInterval);
-
-    return () => {
-      if (beatTimerRef.current) clearInterval(beatTimerRef.current);
-    };
-  }, [beatInterval, totalBeats, maxLoss]);
-
-  // Check win/loss conditions
-  useEffect(() => {
-    if (lossMeter >= maxLoss) {
-      dispatch({ type: 'TRANSITION', payload: GameState.GAME_OVER });
-    }
-  }, [lossMeter, maxLoss, dispatch]);
-
-  useEffect(() => {
-    if (beatsHit >= totalBeats) {
-      // Record scene 2 win
-      if (currentScene.id === 2) {
-        dispatch({ type: 'SET_SCENE2_WON', payload: true });
-      }
-      dispatch({ type: 'TRANSITION', payload: GameState.SCENE_END });
-    }
-  }, [beatsHit, totalBeats, dispatch, currentScene.id]);
-
-  // Handle input
+  // Input handler
   const handleHit = useCallback(() => {
-    if (currentBeatActive) {
-      setCurrentBeatActive(false);
-      setBeatsHit((b) => b + 1);
-      setCombo((c) => c + 1);
-      setHitFeedback('hit');
-      setTimeout(() => setHitFeedback('none'), 300);
-    } else {
-      // Hit when no beat — penalty
-      setLossMeter((m) => m + 1);
-      setCombo(0);
-      setHitFeedback('miss');
-      setTimeout(() => setHitFeedback('none'), 400);
+    if (endDispatched.current) return;
+    const elapsed = Date.now() - startRef.current;
+
+    let closest: Beat | null = null;
+    let minDist = Infinity;
+    for (const beat of beatsRef.current) {
+      if (beat.hit || beat.missed) continue;
+      const dist = Math.abs(elapsed - beat.timestamp);
+      if (dist <= HIT_WINDOW && dist < minDist) {
+        closest = beat;
+        minDist = dist;
+      }
     }
-  }, [currentBeatActive]);
+
+    if (closest) {
+      closest.hit = true;
+      hitsRef.current++;
+      hitFlashElapsed.current = elapsed;
+      setHitsLanded(hitsRef.current);
+
+      if (hitsRef.current >= TOTAL_BEATS && !endDispatched.current) {
+        endDispatched.current = true;
+        dispatch({ type: 'TRANSITION', payload: GameState.SCENE_END });
+      }
+    }
+  }, [dispatch]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         handleHit();
       }
     };
-    const mouseHandler = (e: MouseEvent) => {
+    const onMouse = (e: MouseEvent) => {
       if (e.button === 0) handleHit();
     };
-
-    window.addEventListener('keydown', handler);
-    window.addEventListener('mousedown', mouseHandler);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('mousedown', onMouse);
     return () => {
-      window.removeEventListener('keydown', handler);
-      window.removeEventListener('mousedown', mouseHandler);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('mousedown', onMouse);
     };
   }, [handleHit]);
 
-  const lossRatio = lossMeter / maxLoss;
-  const hitRatio = beatsHit / totalBeats;
+  // rAF canvas render + beat timing loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const loop = () => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Sync canvas resolution to CSS size
+      if (canvas.width !== canvas.offsetWidth) canvas.width = canvas.offsetWidth;
+      if (canvas.height !== canvas.offsetHeight) canvas.height = canvas.offsetHeight;
+
+      const elapsed = Date.now() - startRef.current;
+      const W = canvas.width;
+      const H = canvas.height;
+      const cx = W / 2;
+      const cy = H / 2;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // Process each beat
+      let allDone = true;
+      for (const beat of beatsRef.current) {
+        if (!beat.hit && !beat.missed) allDone = false;
+        if (beat.hit || beat.missed) continue;
+
+        // Pulse when beat arrives
+        if (elapsed >= beat.timestamp && !beat.pulsed) {
+          beat.pulsed = true;
+          lastPulseElapsed.current = elapsed;
+        }
+
+        // Auto-miss when beat passes hit window
+        if (elapsed > beat.timestamp + HIT_WINDOW) {
+          beat.missed = true;
+          lossRef.current++;
+          missFlashElapsed.current = elapsed;
+          setLossMeter(lossRef.current);
+
+          if (lossRef.current >= lossMeterSize && !endDispatched.current) {
+            endDispatched.current = true;
+            dispatch({ type: 'TRANSITION', payload: GameState.GAME_OVER });
+            return;
+          }
+        }
+      }
+
+      // All beats resolved without hitting win/lose thresholds
+      if (allDone && !endDispatched.current) {
+        endDispatched.current = true;
+        dispatch({
+          type: 'TRANSITION',
+          payload: hitsRef.current >= TOTAL_BEATS ? GameState.SCENE_END : GameState.GAME_OVER,
+        });
+        return;
+      }
+
+      // Draw incoming beat ring (contracting toward center circle)
+      const nextBeat = beatsRef.current.find(b => !b.hit && !b.missed);
+      if (nextBeat) {
+        const timeUntil = nextBeat.timestamp - elapsed;
+        if (timeUntil > 0 && timeUntil < 1200) {
+          const progress = 1 - timeUntil / 1200;
+          const ringR = 60 + 130 * (1 - progress);
+          const alpha = 0.8 * progress;
+          ctx.save();
+          ctx.strokeStyle = `rgba(239,68,68,${alpha.toFixed(2)})`;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // Beat pulse scale: 1.8 on pulse, decays to 1.0 over 300ms
+      const timeSincePulse = elapsed - lastPulseElapsed.current;
+      const pulseScale = timeSincePulse < 300 ? 1.0 + 0.8 * (1 - timeSincePulse / 300) : 1.0;
+
+      // Circle color based on recent events
+      const sinceHit = elapsed - hitFlashElapsed.current;
+      const sinceMiss = elapsed - missFlashElapsed.current;
+      let color: string;
+      if (sinceHit < 200) {
+        color = '#4ade80'; // green on hit
+      } else if (sinceMiss < 200) {
+        color = '#ffffff'; // white on miss
+      } else {
+        color = '#dc2626'; // red default
+      }
+
+      // Draw beat cue circle
+      const radius = 60 * pulseScale;
+      ctx.save();
+      ctx.shadowBlur = 40 * pulseScale;
+      ctx.shadowColor = color;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      animRef.current = requestAnimationFrame(loop);
+    };
+
+    animRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [dispatch, lossMeterSize]);
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col items-center justify-between bg-black/90 backdrop-blur-md scanlines">
+    <div className="absolute inset-0 z-40 flex flex-col items-center justify-between bg-black/90 backdrop-blur-md scanlines font-sans">
       <div className="noise-overlay" />
 
       {/* ── Top: Scene info ─────── */}
-      <div className="w-full p-6 flex justify-between items-start">
+      <div className="w-full p-8 flex justify-between items-start z-10">
         <div>
-          <p className="text-[10px] tracking-[0.5em] uppercase text-red-900">BRAWL</p>
-          <h2 className="font-display text-3xl text-white tracking-wider">{currentScene.name}</h2>
+          <p className="text-[10px] tracking-[0.5em] uppercase text-red-700">BRAWL</p>
+          <h2 className="font-display text-4xl text-white tracking-wider drop-shadow-md">{currentScene.name}</h2>
         </div>
-        {combo > 1 && (
-          <div className="animate-fadeIn">
-            <span className="font-display text-4xl text-yellow-400 drop-shadow-[0_0_20px_rgba(234,179,8,0.6)]">
-              {combo}x
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* ── Center: Beat target ──── */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        {/* Beat ring */}
-        <div
-          className={`relative w-40 h-40 rounded-full border-4 flex items-center justify-center transition-all duration-100
-            ${
-              hitFeedback === 'hit'
-                ? 'border-green-500 bg-green-900/20 scale-110'
-                : hitFeedback === 'miss'
-                ? 'border-red-500 bg-red-900/20 animate-meterShake'
-                : currentBeatActive
-                ? 'border-red-500 bg-red-950/30'
-                : 'border-gray-800 bg-gray-950/30'
-            }`}
-          style={{
-            animation: currentBeatActive ? 'beatPulse 0.3s ease-in-out' : 'none',
-            boxShadow: currentBeatActive
-              ? '0 0 60px rgba(220,38,38,0.5), inset 0 0 30px rgba(220,38,38,0.2)'
-              : hitFeedback === 'hit'
-              ? '0 0 60px rgba(34,197,94,0.5)'
-              : 'none',
-          }}
-        >
-          {currentBeatActive ? (
-            <span className="font-display text-5xl text-red-500">HIT</span>
-          ) : hitFeedback === 'hit' ? (
-            <span className="font-display text-4xl text-green-400">✓</span>
-          ) : hitFeedback === 'miss' ? (
-            <span className="font-display text-4xl text-red-400">✗</span>
-          ) : (
-            <span className="font-display text-3xl text-gray-700">···</span>
-          )}
-        </div>
-
-        <p className="mt-6 text-[10px] tracking-[0.4em] uppercase text-gray-600">
+      {/* ── Center: Canvas ──── */}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-0" />
+      <div className="z-10 pointer-events-none mt-20">
+        <p className="text-[10px] tracking-[0.4em] uppercase text-gray-500 bg-black/50 px-4 py-1 rounded">
           PRESS SPACE ON THE BEAT
         </p>
       </div>
 
       {/* ── Bottom: Meters ──────── */}
-      <div className="w-full p-6 md:p-10 space-y-4 max-w-xl mx-auto">
+      <div className="w-full p-8 md:p-12 space-y-6 max-w-xl mx-auto z-10">
+        
         {/* Hits landed */}
         <div>
-          <div className="flex justify-between mb-1.5">
-            <span className="text-[10px] tracking-[0.4em] uppercase text-green-700">Hits Landed</span>
-            <span className="text-xs font-mono text-green-600">
-              {beatsHit}/{totalBeats}
+          <div className="flex justify-between mb-2">
+            <span className="text-[10px] tracking-[0.4em] uppercase text-green-600">Hits Landed</span>
+            <span className="text-sm font-mono text-green-500 font-bold">
+              {hitsLanded} / {TOTAL_BEATS}
             </span>
           </div>
-          <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-green-900/30">
+          <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-green-900/40">
             <div
               className="h-full rounded-full transition-all duration-200"
               style={{
-                width: `${hitRatio * 100}%`,
-                background: 'linear-gradient(90deg, #166534, #22c55e)',
+                width: `${(hitsLanded / TOTAL_BEATS) * 100}%`,
+                background: 'linear-gradient(90deg, #16a34a, #22c55e)',
               }}
             />
           </div>
@@ -199,22 +287,23 @@ export function FightMinigame() {
 
         {/* Damage taken */}
         <div className={lossMeter > 0 ? 'animate-meterShake' : ''} style={{ animationDuration: '0.15s' }}>
-          <div className="flex justify-between mb-1.5">
-            <span className="text-[10px] tracking-[0.4em] uppercase text-red-800">Damage</span>
-            <span className="text-xs font-mono text-red-600">
-              {lossMeter}/{maxLoss}
+          <div className="flex justify-between mb-2">
+            <span className="text-[10px] tracking-[0.4em] uppercase text-red-600">Damage</span>
+            <span className="text-sm font-mono text-red-500 font-bold">
+              {lossMeter} / {lossMeterSize}
             </span>
           </div>
-          <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-red-900/30">
+          <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-red-900/40">
             <div
               className="h-full rounded-full transition-all duration-200"
               style={{
-                width: `${lossRatio * 100}%`,
-                background: 'linear-gradient(90deg, #991b1b, #ef4444)',
+                width: `${(lossMeter / lossMeterSize) * 100}%`,
+                background: 'linear-gradient(90deg, #b91c1c, #ef4444)',
               }}
             />
           </div>
         </div>
+
       </div>
     </div>
   );
