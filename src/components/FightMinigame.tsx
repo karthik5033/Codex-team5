@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import Image from 'next/image';
 import { useGameState } from '../hooks/useGameState';
 import { useSceneManager } from '../hooks/useSceneManager';
 import { GameState } from '../lib/gameState';
@@ -52,6 +53,10 @@ export function FightMinigame() {
 
   const [hitsLanded, setHitsLanded] = useState(0);
   const [lossMeter, setLossMeter] = useState(0);
+
+  // Animation states for the portraits
+  const [playerState, setPlayerState] = useState<'idle' | 'attack' | 'damage'>('idle');
+  const [antagState, setAntagState] = useState<'idle' | 'attack' | 'damage'>('idle');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const beatsRef = useRef<Beat[]>([]);
@@ -107,6 +112,14 @@ export function FightMinigame() {
       hitsRef.current++;
       hitFlashElapsed.current = elapsed;
       setHitsLanded(hitsRef.current);
+      
+      // Trigger CSS animations: Player attacks, Antag gets damaged
+      setPlayerState('attack');
+      setAntagState('damage');
+      setTimeout(() => {
+        setPlayerState('idle');
+        setAntagState('idle');
+      }, 200);
 
       if (hitsRef.current >= TOTAL_BEATS && !endDispatched.current) {
         endDispatched.current = true;
@@ -172,6 +185,14 @@ export function FightMinigame() {
           lossRef.current++;
           missFlashElapsed.current = elapsed;
           setLossMeter(lossRef.current);
+
+          // Trigger CSS animations: Antag attacks, Player gets damaged
+          setAntagState('attack');
+          setPlayerState('damage');
+          setTimeout(() => {
+            setAntagState('idle');
+            setPlayerState('idle');
+          }, 200);
 
           if (lossRef.current >= lossMeterSize && !endDispatched.current) {
             endDispatched.current = true;
@@ -243,68 +264,138 @@ export function FightMinigame() {
     return () => cancelAnimationFrame(animRef.current);
   }, [dispatch, lossMeterSize]);
 
-  return (
-    <div className="absolute inset-0 z-40 flex flex-col items-center justify-between bg-black/90 backdrop-blur-md scanlines font-sans">
-      <div className="noise-overlay" />
+  // Determine images
+  const bgImage = 
+    currentScene.id === 1 ? '/assets/bg_scene1.png' :
+    currentScene.id === 2 ? '/assets/bg_scene2.png' :
+    '/assets/bg_scene3.png';
 
-      {/* ── Top: Scene info ─────── */}
-      <div className="w-full p-8 flex justify-between items-start z-10">
-        <div>
-          <p className="text-[10px] tracking-[0.5em] uppercase text-red-700">BRAWL</p>
+  const antagonistImage = 
+    currentScene.id === 1 ? '/assets/char_stranger.png' :
+    currentScene.id === 2 ? '/assets/char_crew.png' :
+    '/assets/char_boss.png';
+
+  const antagonistName = 
+    currentScene.id === 1 ? 'Stranger' :
+    currentScene.id === 2 ? 'The Crew' :
+    'The Boss';
+
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col justify-between bg-black/90 scanlines font-sans overflow-hidden">
+      
+      {/* ── Background ───────────────── */}
+      <div className="absolute inset-0 z-0">
+         <Image 
+           src={bgImage}
+           alt="Scene Background"
+           fill
+           className="object-cover opacity-30"
+           priority
+         />
+      </div>
+      <div className="noise-overlay z-10" />
+
+      {/* ── Fighting Game HUD ────────── */}
+      <div className="w-full px-8 pt-8 flex justify-between items-start z-20">
+        
+        {/* Player Health Bar */}
+        <div className="w-[40%]">
+          <div className="flex justify-between mb-2">
+            <span className="text-sm tracking-[0.4em] uppercase text-gray-300 font-bold">You</span>
+            <span className="text-sm font-mono text-red-500 font-bold">
+              DMG: {lossMeter} / {lossMeterSize}
+            </span>
+          </div>
+          <div className="w-full h-4 bg-gray-900 overflow-hidden border-2 border-gray-700 transform skew-x-[-15deg]">
+            <div
+              className="h-full transition-all duration-200"
+              style={{
+                width: `${100 - (lossMeter / lossMeterSize) * 100}%`,
+                background: 'linear-gradient(90deg, #16a34a, #22c55e)',
+                transformOrigin: 'left'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* BRAWL Title */}
+        <div className="text-center z-20">
+          <p className="text-[10px] tracking-[0.5em] uppercase text-red-700 font-bold">BRAWL</p>
           <h2 className="font-display text-4xl text-white tracking-wider drop-shadow-md">{currentScene.name}</h2>
         </div>
-      </div>
 
-      {/* ── Center: Canvas ──── */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-0" />
-      <div className="z-10 pointer-events-none mt-20">
-        <p className="text-[10px] tracking-[0.4em] uppercase text-gray-500 bg-black/50 px-4 py-1 rounded">
-          PRESS SPACE ON THE BEAT
-        </p>
-      </div>
-
-      {/* ── Bottom: Meters ──────── */}
-      <div className="w-full p-8 md:p-12 space-y-6 max-w-xl mx-auto z-10">
-        
-        {/* Hits landed */}
-        <div>
-          <div className="flex justify-between mb-2">
-            <span className="text-[10px] tracking-[0.4em] uppercase text-green-600">Hits Landed</span>
+        {/* Antagonist Health Bar */}
+        <div className="w-[40%] text-right">
+          <div className="flex justify-between flex-row-reverse mb-2">
+            <span className="text-sm tracking-[0.4em] uppercase text-red-400 font-bold">{antagonistName}</span>
             <span className="text-sm font-mono text-green-500 font-bold">
-              {hitsLanded} / {TOTAL_BEATS}
+              HIT: {hitsLanded} / {TOTAL_BEATS}
             </span>
           </div>
-          <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-green-900/40">
+          <div className="w-full h-4 bg-gray-900 overflow-hidden border-2 border-red-900 transform skew-x-[15deg]">
             <div
-              className="h-full rounded-full transition-all duration-200"
+              className="h-full transition-all duration-200 float-right"
               style={{
-                width: `${(hitsLanded / TOTAL_BEATS) * 100}%`,
-                background: 'linear-gradient(90deg, #16a34a, #22c55e)',
+                width: `${100 - (hitsLanded / TOTAL_BEATS) * 100}%`,
+                background: 'linear-gradient(270deg, #b91c1c, #ef4444)',
+                transformOrigin: 'right'
               }}
             />
           </div>
         </div>
+      </div>
 
-        {/* Damage taken */}
-        <div className={lossMeter > 0 ? 'animate-meterShake' : ''} style={{ animationDuration: '0.15s' }}>
-          <div className="flex justify-between mb-2">
-            <span className="text-[10px] tracking-[0.4em] uppercase text-red-600">Damage</span>
-            <span className="text-sm font-mono text-red-500 font-bold">
-              {lossMeter} / {lossMeterSize}
-            </span>
+      {/* ── Fight Arena ──────────────── */}
+      <div className="relative flex-1 flex items-center justify-between px-10 md:px-24 z-20 mt-10 pointer-events-none">
+        
+        {/* Player Sprite */}
+        <div 
+          className="relative transition-transform duration-75"
+          style={{
+            transform: playerState === 'attack' ? 'translateX(100px) scale(1.1)' : 'translateX(0) scale(1)',
+            filter: playerState === 'damage' ? 'brightness(0.5) sepia(1) hue-rotate(-50deg) saturate(5) contrast(1.2)' : 'none'
+          }}
+        >
+          <div className={`relative w-48 h-48 md:w-80 md:h-80 rounded-xl overflow-hidden border-4 border-gray-800 shadow-2xl ${playerState === 'damage' ? 'animate-glitch' : ''}`}>
+            <Image 
+              src="/assets/char_player.png" 
+              alt="Player" 
+              fill 
+              className="object-cover"
+            />
           </div>
-          <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-red-900/40">
-            <div
-              className="h-full rounded-full transition-all duration-200"
-              style={{
-                width: `${(lossMeter / lossMeterSize) * 100}%`,
-                background: 'linear-gradient(90deg, #b91c1c, #ef4444)',
-              }}
+        </div>
+
+        {/* Rhythm Canvas (Center) */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <canvas ref={canvasRef} className="w-96 h-96 z-30" />
+          <div className="mt-4">
+            <p className="text-[10px] tracking-[0.4em] uppercase text-gray-400 bg-black/80 border border-gray-700 px-4 py-2 rounded shadow-2xl">
+              PRESS SPACE ON THE BEAT
+            </p>
+          </div>
+        </div>
+
+        {/* Antagonist Sprite */}
+        <div 
+          className="relative transition-transform duration-75"
+          style={{
+            transform: antagState === 'attack' ? 'translateX(-100px) scale(1.1)' : 'translateX(0) scale(1)',
+            filter: antagState === 'damage' ? 'brightness(1.5) contrast(1.5) grayscale(1)' : 'none'
+          }}
+        >
+          <div className={`relative w-48 h-48 md:w-80 md:h-80 rounded-xl overflow-hidden border-4 border-red-900 shadow-2xl ${antagState === 'damage' ? 'animate-glitch' : ''}`}>
+            <Image 
+              src={antagonistImage} 
+              alt={antagonistName} 
+              fill 
+              className="object-cover"
             />
           </div>
         </div>
 
       </div>
+
     </div>
   );
 }
