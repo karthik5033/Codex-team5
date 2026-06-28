@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import { useGameState } from '../hooks/useGameState';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { useSceneManager } from '../hooks/useSceneManager';
@@ -239,18 +240,32 @@ function FightTransition() {
 /* ── Scene End Screen ─────────────────────── */
 function SceneEndTransition() {
   return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
-      <p className="font-display text-5xl text-green-400 tracking-widest uppercase font-bold animate-pulse mb-8">
-        You survived.
-      </p>
-      
-      {/* Visual-only prompt */}
-      <div
-        className="mt-16 animate-fadeIn"
-        style={{ animationDelay: '1s', animationFillMode: 'both' }}
-      >
-        <div className="inline-block px-8 py-3 border border-gray-700 text-gray-400 font-display text-xl tracking-[0.3em] uppercase">
-          PRESS SPACE
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <Image 
+          src="/assets/bg_scene_end.png"
+          alt="Scene End Background"
+          fill
+          className="object-cover opacity-40 mix-blend-luminosity"
+          priority
+        />
+      </div>
+      <div className="noise-overlay z-10" />
+      <div className="vignette z-10" />
+
+      <div className="z-20 text-center flex flex-col items-center">
+        <p className="font-display text-5xl md:text-7xl text-green-500 tracking-widest uppercase font-bold animate-pulse mb-4 drop-shadow-2xl">
+          You survived.
+        </p>
+        
+        {/* Visual-only prompt */}
+        <div
+          className="mt-16 animate-fadeIn"
+          style={{ animationDelay: '1s', animationFillMode: 'both' }}
+        >
+          <div className="inline-block px-10 py-3 border-2 border-gray-700 bg-black/60 backdrop-blur-md text-gray-300 font-display text-xl tracking-[0.3em] uppercase shadow-2xl">
+            PRESS SPACE
+          </div>
         </div>
       </div>
     </div>
@@ -260,17 +275,28 @@ function SceneEndTransition() {
 /* ── Game Win Screen ──────────────────────── */
 function GameWinScreen() {
   return (
-    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black scanlines">
-      <div className="vignette" />
-      <div className="z-10 text-center">
+    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black scanlines overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <Image 
+          src="/assets/bg_game_win.png"
+          alt="Game Win Background"
+          fill
+          className="object-cover opacity-50"
+          priority
+        />
+      </div>
+      <div className="noise-overlay z-10" />
+      <div className="vignette z-10" />
+
+      <div className="z-20 text-center">
         <h1
-          className="font-display text-6xl md:text-7xl tracking-[0.2em] text-white animate-fadeIn"
+          className="font-display text-6xl md:text-8xl tracking-[0.2em] text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] animate-fadeIn"
           style={{ animationDelay: '0.5s', animationFillMode: 'both' }}
         >
           You walked away.
         </h1>
         <p
-          className="mt-6 text-lg text-gray-500 italic animate-fadeIn"
+          className="mt-6 text-xl text-gray-400 italic animate-fadeIn drop-shadow-md"
           style={{ animationDelay: '2s', animationFillMode: 'both' }}
         >
           Cold but intact.
@@ -278,10 +304,10 @@ function GameWinScreen() {
 
         {/* Visual-only prompt */}
         <div
-          className="mt-16 animate-fadeIn"
+          className="mt-20 animate-fadeIn"
           style={{ animationDelay: '3.5s', animationFillMode: 'both' }}
         >
-          <div className="inline-block px-8 py-3 border border-gray-700 text-gray-400 font-display text-xl tracking-[0.3em] uppercase">
+          <div className="inline-block px-10 py-3 border-2 border-gray-600 bg-black/70 backdrop-blur-md text-gray-300 font-display text-xl tracking-[0.3em] uppercase shadow-2xl">
             PRESS SPACE
           </div>
         </div>

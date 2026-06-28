@@ -5,10 +5,12 @@ type InputCallback = (type: 'tap' | 'hold') => void;
 
 export function useInputHandler(isActive: boolean, onInput: InputCallback) {
   const pressStartTime = useRef<number | null>(null);
+  const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!isActive) {
       pressStartTime.current = null;
+      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
       return;
     }
 
@@ -19,6 +21,14 @@ export function useInputHandler(isActive: boolean, onInput: InputCallback) {
 
       if (pressStartTime.current === null) {
         pressStartTime.current = Date.now();
+        
+        // Trigger 'hold' automatically after 300ms of being held down
+        holdTimeoutRef.current = setTimeout(() => {
+          if (pressStartTime.current !== null) {
+            pressStartTime.current = null;
+            onInput('hold');
+          }
+        }, 300);
       }
     };
 
@@ -26,15 +36,11 @@ export function useInputHandler(isActive: boolean, onInput: InputCallback) {
       if (e instanceof KeyboardEvent && e.code !== 'Space') return;
       if (e instanceof MouseEvent && e.button !== 0) return;
 
+      // If pressStartTime is still set, it means the key was released BEFORE the 300ms hold timeout
       if (pressStartTime.current !== null) {
-        const duration = Date.now() - pressStartTime.current;
         pressStartTime.current = null;
-
-        if (duration < 300) {
-          onInput('tap');
-        } else {
-          onInput('hold');
-        }
+        if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+        onInput('tap');
       }
     };
 
@@ -44,6 +50,7 @@ export function useInputHandler(isActive: boolean, onInput: InputCallback) {
     window.addEventListener('mouseup', handlePressEnd);
 
     return () => {
+      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
       window.removeEventListener('keydown', handlePressStart);
       window.removeEventListener('keyup', handlePressEnd);
       window.removeEventListener('mousedown', handlePressStart);
