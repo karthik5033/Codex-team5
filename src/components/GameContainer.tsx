@@ -1,83 +1,280 @@
 'use client';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useGameState } from '../hooks/useGameState';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { useSceneManager } from '../hooks/useSceneManager';
 import { GameState } from '../lib/gameState';
-import { GameCanvas } from './GameCanvas';
 import { UIOverlay } from './UIOverlay';
 import { FightMinigame } from './FightMinigame';
 import { GameOverScreen } from './GameOverScreen';
 
+/**
+ * ONE BUTTON ARCHITECTURE
+ * ──────────────────────
+ * Every screen transition is controlled by Spacebar or Left-Click.
+ * No mouse-targeted buttons exist anywhere — only visual prompts
+ * telling the player to press the one button.
+ *
+ * Flow:
+ *   Title          → SPACE tap  → Scene Intro
+ *   Scene Intro    → SPACE tap  → Decision Window
+ *   Decision       → SPACE tap  → Evaluate tap outcome
+ *                  → SPACE hold → Fight
+ *   Outcome        → SPACE tap  → Next scene / Fight
+ *   Scene End      → SPACE tap  → Next scene / Win
+ *   Fight Init     → (auto)     → Fight Active
+ *   Fight Active   → (handled by FightMinigame)
+ *   Game Over      → SPACE tap  → Restart
+ *   Game Win       → SPACE tap  → Restart
+ */
+
 export function GameContainer() {
   const { state, dispatch } = useGameState();
-  const { evaluateTap } = useSceneManager();
+  const { evaluateTap, outcome, currentScene } = useSceneManager();
+  const [showTitle, setShowTitle] = useState(true);
 
-  // Handle tap vs hold globally depending on state
-  useInputHandler(
-    state.currentState === GameState.DECISION_WINDOW || state.currentState === GameState.FIGHT_ACTIVE,
-    (type) => {
-      if (state.currentState === GameState.DECISION_WINDOW) {
+  // Guard: prevent accidental double-presses after a state change.
+  // After each transition we lock input for a short "cooldown" window.
+  const lockedUntilRef = useRef(0);
+
+  const lockInput = useCallback((ms: number) => {
+    lockedUntilRef.current = Date.now() + ms;
+  }, []);
+
+  const isLocked = useCallback(() => Date.now() < lockedUntilRef.current, []);
+
+  // ── Central one-button handler ──────────
+  const handleInput = useCallback(
+    (type: 'tap' | 'hold') => {
+      if (isLocked()) return;
+
+      const s = state.currentState;
+
+      // SCENE_INTRO → start decision window
+      if (s === GameState.SCENE_INTRO) {
+        lockInput(400);
+        dispatch({ type: 'TRANSITION', payload: GameState.DECISION_WINDOW });
+        return;
+      }
+
+      // DECISION_WINDOW → tap = evaluate, hold = fight
+      if (s === GameState.DECISION_WINDOW) {
+        lockInput(500);
         if (type === 'tap') {
           evaluateTap();
-        } else if (type === 'hold') {
+        } else {
           dispatch({ type: 'TRANSITION', payload: GameState.FIGHT_INIT });
         }
-      } else if (state.currentState === GameState.FIGHT_ACTIVE) {
-        // Fight minigame inputs are handled inside the FightMinigame component or passed down
-        // If we handle it here, we'd need a fight engine hook. 
-        // We'll let FightMinigame handle its own input or just pass a global event.
+        return;
       }
-    }
+
+      // OUTCOME_TAP → advance (win/partial → next scene, fail/timeout → fight)
+      if (s === GameState.OUTCOME_TAP) {
+        lockInput(500);
+        if (outcome === 'win' || outcome === 'partial') {
+          if (currentScene.id >= 3) {
+            dispatch({ type: 'TRANSITION', payload: GameState.GAME_WIN });
+          } else {
+            dispatch({ type: 'NEXT_SCENE' });
+          }
+        } else {
+          // fail or timeout → fight
+          dispatch({ type: 'TRANSITION', payload: GameState.FIGHT_INIT });
+        }
+        return;
+      }
+
+      // SCENE_END (after winning a fight) → next scene
+      if (s === GameState.SCENE_END) {
+        lockInput(500);
+        if (currentScene.id >= 3) {
+          dispatch({ type: 'TRANSITION', payload: GameState.GAME_WIN });
+        } else {
+          dispatch({ type: 'NEXT_SCENE' });
+        }
+        return;
+      }
+
+      // GAME_OVER → restart
+      if (s === GameState.GAME_OVER) {
+        lockInput(600);
+        dispatch({ type: 'RESTART' });
+        return;
+      }
+
+      // GAME_WIN → restart
+      if (s === GameState.GAME_WIN) {
+        lockInput(600);
+        dispatch({ type: 'RESTART' });
+        return;
+      }
+    },
+    [state.currentState, evaluateTap, outcome, currentScene, dispatch, lockInput, isLocked]
   );
 
+  // Active for every state EXCEPT fight active (FightMinigame has its own handler)
+  // and fight init (auto-transitions)
+  const inputActive =
+    !showTitle &&
+    state.currentState !== GameState.FIGHT_ACTIVE &&
+    state.currentState !== GameState.FIGHT_INIT;
+
+  useInputHandler(inputActive, handleInput);
+
+  // ── Title screen uses its own space listener ──
+  useEffect(() => {
+    if (!showTitle) return;
+
+    let ready = false;
+    const readyTimer = setTimeout(() => {
+      ready = true;
+    }, 1200); // prevent accidental skip
+
+    const handler = (e: KeyboardEvent | MouseEvent) => {
+      if (!ready) return;
+      if (e instanceof KeyboardEvent && e.code !== 'Space') return;
+      if (e instanceof MouseEvent && e.button !== 0) return;
+      setShowTitle(false);
+    };
+
+    window.addEventListener('keydown', handler);
+    window.addEventListener('mousedown', handler);
+    return () => {
+      clearTimeout(readyTimer);
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('mousedown', handler);
+    };
+  }, [showTitle]);
+
+  // Lock input briefly when entering a new state so the player reads the screen
+  useEffect(() => {
+    const st = state.currentState;
+    if (st === GameState.SCENE_INTRO) lockInput(800);
+    if (st === GameState.OUTCOME_TAP) lockInput(1200);
+    if (st === GameState.SCENE_END) lockInput(1000);
+    if (st === GameState.GAME_OVER) lockInput(2000);
+    if (st === GameState.GAME_WIN) lockInput(3000);
+  }, [state.currentState, lockInput]);
+
+  if (showTitle) {
+    return <TitleScreen />;
+  }
+
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans select-none">
-      <GameCanvas />
+    <div
+      className="relative w-screen h-screen overflow-hidden bg-black text-white select-none scanlines"
+    >
+      <div className="noise-overlay" />
+      <div className="vignette" />
+
       <UIOverlay />
-      
-      {state.currentState === GameState.FIGHT_INIT && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-red-900 animate-pulse">
-          <h1 className="text-6xl font-black italic uppercase text-white tracking-tighter">
-            FIGHT
-          </h1>
-          {/* Auto transition to ACTIVE after a short delay */}
-          <FightTransition />
-        </div>
-      )}
 
+      {state.currentState === GameState.FIGHT_INIT && <FightInitScreen />}
       {state.currentState === GameState.FIGHT_ACTIVE && <FightMinigame />}
-      
       {state.currentState === GameState.GAME_OVER && <GameOverScreen />}
-
-      {state.currentState === GameState.GAME_WIN && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black">
-          <h1 className="text-4xl font-bold tracking-widest uppercase text-white mb-8">
-            You walked away.
-          </h1>
-          <p className="text-gray-400">The end.</p>
-          <button 
-            onClick={() => dispatch({ type: 'RESTART' })}
-            className="mt-8 px-6 py-2 border border-white hover:bg-white hover:text-black transition uppercase font-bold"
-          >
-            Play Again
-          </button>
-        </div>
-      )}
+      {state.currentState === GameState.GAME_WIN && <GameWinScreen />}
     </div>
   );
 }
 
-function FightTransition() {
-  const { dispatch } = useGameState();
-  
-  import('react').then(({ useEffect }) => {
-    useEffect(() => {
-      const timer = setTimeout(() => {
-        dispatch({ type: 'TRANSITION', payload: GameState.FIGHT_ACTIVE });
-      }, 1500);
-      return () => clearTimeout(timer);
-    }, [dispatch]);
-  });
+/* ── Title Screen ─────────────────────────── */
+function TitleScreen() {
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-black flex flex-col items-center justify-center scanlines">
+      <div className="noise-overlay" />
+      <div className="vignette" />
 
-  return null;
+      <div className="z-10 text-center">
+        <h1
+          className="font-display text-8xl md:text-9xl tracking-[0.15em] text-white drop-shadow-[0_0_40px_rgba(220,38,38,0.5)] animate-fadeIn"
+          style={{ animationDelay: '0.3s', animationFillMode: 'both' }}
+        >
+          COLD BLOOD
+        </h1>
+        <p
+          className="mt-4 text-sm tracking-[0.4em] uppercase text-gray-500 animate-fadeIn"
+          style={{ animationDelay: '1s', animationFillMode: 'both' }}
+        >
+          One Button &nbsp;·&nbsp; Street Confrontation &nbsp;·&nbsp; No Escape
+        </p>
+
+        {/* Visual-only prompt (not a clickable button) */}
+        <div
+          className="mt-16 animate-fadeIn"
+          style={{ animationDelay: '1.8s', animationFillMode: 'both' }}
+        >
+          <div className="inline-block px-10 py-3 border border-red-900/60 text-red-500 font-display text-2xl tracking-[0.3em] uppercase animate-pulseGlow">
+            PRESS SPACE
+          </div>
+        </div>
+
+        <p
+          className="mt-20 text-[10px] tracking-[0.5em] uppercase text-gray-700 animate-fadeIn"
+          style={{ animationDelay: '2.5s', animationFillMode: 'both' }}
+        >
+          Buildathon 2026
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Fight Init Flash ─────────────────────── */
+function FightInitScreen() {
+  const { dispatch } = useGameState();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      dispatch({ type: 'TRANSITION', payload: GameState.FIGHT_ACTIVE });
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [dispatch]);
+
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black">
+      <div
+        className="absolute inset-0 bg-red-900/80"
+        style={{ animation: 'fightFlash 1.8s ease-out forwards' }}
+      />
+      <h1
+        className="relative z-10 font-display text-[10rem] text-white tracking-[0.2em] drop-shadow-[0_0_80px_rgba(220,38,38,1)]"
+        style={{ animation: 'heartbeat 0.6s ease-in-out infinite' }}
+      >
+        FIGHT
+      </h1>
+    </div>
+  );
+}
+
+/* ── Game Win Screen ──────────────────────── */
+function GameWinScreen() {
+  return (
+    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black scanlines">
+      <div className="vignette" />
+      <div className="z-10 text-center">
+        <h1
+          className="font-display text-6xl md:text-7xl tracking-[0.2em] text-white animate-fadeIn"
+          style={{ animationDelay: '0.5s', animationFillMode: 'both' }}
+        >
+          You walked away.
+        </h1>
+        <p
+          className="mt-6 text-lg text-gray-500 italic animate-fadeIn"
+          style={{ animationDelay: '2s', animationFillMode: 'both' }}
+        >
+          Cold but intact.
+        </p>
+
+        {/* Visual-only prompt */}
+        <div
+          className="mt-16 animate-fadeIn"
+          style={{ animationDelay: '3.5s', animationFillMode: 'both' }}
+        >
+          <div className="inline-block px-8 py-3 border border-gray-700 text-gray-400 font-display text-xl tracking-[0.3em] uppercase">
+            PRESS SPACE
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

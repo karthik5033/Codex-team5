@@ -1,3 +1,4 @@
+'use client';
 import { GameProvider } from '../hooks/useGameState';
 import { GameContainer } from '../components/GameContainer';
 
