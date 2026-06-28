@@ -22,7 +22,8 @@
       "partial": { "speaker": "player", "text": "Whoa, take it easy. I'm just passing through." },
       "win": { "speaker": "player", "text": "Step aside." },
       "fail": { "speaker": "antagonist", "text": "Too slow to speak, too slow to fight." },
-      "timeout": { "speaker": "antagonist", "text": "Cat got your tongue?" }
+      "timeout": { "speaker": "antagonist", "text": "Cat got your tongue?" },
+      "intimidate": { "speaker": "antagonist", "text": "Alright, alright! Just take it easy, man!" }
     }
   },
   {
@@ -49,7 +50,8 @@
       "partial": { "speaker": "player", "text": "Just take what you need and let me go." },
       "win": { "speaker": "player", "text": "I'm not looking for trouble. But I ain't backing down." },
       "fail": { "speaker": "antagonist", "text": "Shut your mouth and put 'em up!" },
-      "timeout": { "speaker": "antagonist", "text": "We're done waiting!" }
+      "timeout": { "speaker": "antagonist", "text": "We're done waiting!" },
+      "intimidate": { "speaker": "antagonist", "text": "Whoa! Back off guys, he's crazy." }
     }
   },
   {
@@ -76,7 +78,8 @@
       "win": { "speaker": "player", "text": "It's over. I'm walking away." },
       "fail": { "speaker": "antagonist", "text": "Silence. I knew you'd never change." },
       "conditional_fail": { "speaker": "antagonist", "text": "I can see the fear in your eyes." },
-      "timeout": { "speaker": "antagonist", "text": "No words? Then let our fists do the talking." }
+      "timeout": { "speaker": "antagonist", "text": "No words? Then let our fists do the talking." },
+      "intimidate": { "speaker": "antagonist", "text": "...I didn't know you had it in you." }
     }
   },
   {
@@ -102,7 +105,8 @@
       "partial": { "speaker": "player", "text": "We can both walk away from this." },
       "win": { "speaker": "player", "text": "Tell your boss I'm coming for him." },
       "fail": { "speaker": "antagonist", "text": "Train's leaving... and you're not on it." },
-      "timeout": { "speaker": "antagonist", "text": "Too scared to fight? We'll make it quick." }
+      "timeout": { "speaker": "antagonist", "text": "Too scared to fight? We'll make it quick." },
+      "intimidate": { "speaker": "antagonist", "text": "Boss didn't say you were this loud. We're out." }
     }
   },
   {
@@ -128,7 +132,8 @@
       "partial": { "speaker": "player", "text": "You fought well... but it's over." },
       "win": { "speaker": "player", "text": "The city belongs to the people now." },
       "fail": { "speaker": "antagonist", "text": "Another rat caught in the trap." },
-      "timeout": { "speaker": "antagonist", "text": "Disappointing." }
+      "timeout": { "speaker": "antagonist", "text": "Disappointing." },
+      "intimidate": { "speaker": "antagonist", "text": "You... you're a monster." }
     }
   }
 ]

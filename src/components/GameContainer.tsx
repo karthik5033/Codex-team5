@@ -4,10 +4,12 @@ import Image from 'next/image';
 import { useGameState } from '../hooks/useGameState';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { useSceneManager } from '../hooks/useSceneManager';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 import { GameState } from '../lib/gameState';
 import { UIOverlay } from './UIOverlay';
 import { FightMinigame } from './FightMinigame';
 import { GameOverScreen } from './GameOverScreen';
+import { MicIndicator } from './MicIndicator';
 
 /**
  * ONE BUTTON ARCHITECTURE
@@ -59,16 +61,16 @@ export function GameContainer() {
         lockInput(500);
         if (type === 'tap') {
           evaluateTap();
-        } else {
+        } else if (type === 'hold') {
           dispatch({ type: 'TRANSITION', payload: GameState.FIGHT_INIT });
         }
         return;
       }
 
-      // OUTCOME_TAP → advance (win/partial → next scene, fail/timeout → fight)
+      // OUTCOME_TAP → advance (win/partial/intimidate → next scene, fail/timeout → fight)
       if (s === GameState.OUTCOME_TAP) {
         lockInput(500);
-        if (outcome === 'win' || outcome === 'partial') {
+        if (shoutOutcome || outcome === 'win' || outcome === 'partial') {
           if (currentScene.id >= 5) {
             dispatch({ type: 'TRANSITION', payload: GameState.GAME_WIN });
           } else {
@@ -118,6 +120,46 @@ export function GameContainer() {
 
   useInputHandler(inputActive, handleInput);
 
+  // ── Voice input (shout = intimidate during decision) ──
+  const handleVoiceTap = useCallback(() => {
+    handleInput('tap');
+  }, [handleInput]);
+
+  const handleVoiceShout = useCallback(() => {
+    if (isLocked()) return;
+    const s = state.currentState;
+    if (s === GameState.DECISION_WINDOW) {
+      // Intimidation shout — special outcome!
+      lockInput(500);
+      // Set outcome to 'intimidate' and go to OUTCOME_TAP
+      dispatch({ type: 'TRANSITION', payload: GameState.OUTCOME_TAP });
+      // We need to signal this is an intimidate — use a ref
+      shoutTriggeredRef.current = true;
+    } else {
+      // Outside decision window, shout acts as a tap
+      handleInput('tap');
+    }
+  }, [state.currentState, handleInput, dispatch, lockInput, isLocked]);
+
+  const shoutTriggeredRef = useRef(false);
+
+  // Track shout outcome for display
+  const [shoutOutcome, setShoutOutcome] = useState(false);
+  useEffect(() => {
+    if (shoutTriggeredRef.current && state.currentState === GameState.OUTCOME_TAP) {
+      setShoutOutcome(true);
+      shoutTriggeredRef.current = false;
+    } else if (state.currentState !== GameState.OUTCOME_TAP) {
+      setShoutOutcome(false);
+    }
+  }, [state.currentState]);
+
+  const voiceInputActive = !showTitle && state.currentState !== GameState.FIGHT_ACTIVE && state.currentState !== GameState.FIGHT_INIT;
+  const { micEnabled, volume, toggleMic } = useVoiceInput(voiceInputActive, {
+    onTap: handleVoiceTap,
+    onShout: handleVoiceShout,
+  });
+
   // ── Title screen uses its own space listener ──
   useEffect(() => {
     if (!showTitle) return;
@@ -166,8 +208,9 @@ export function GameContainer() {
       <UIOverlay 
         currentScene={currentScene}
         timeElapsed={timeElapsed}
-        outcome={outcome}
+        outcome={shoutOutcome ? 'intimidate' : outcome}
         introIndex={introIndex}
+        micEnabled={micEnabled}
       />
 
       {state.currentState === GameState.FIGHT_INIT && (
@@ -195,6 +238,9 @@ export function GameContainer() {
       {state.currentState === GameState.GAME_OVER && <GameOverScreen />}
       
       {state.currentState === GameState.GAME_WIN && <GameWinScreen />}
+
+      {/* Mic Indicator — always visible */}
+      <MicIndicator micEnabled={micEnabled} volume={volume} onToggle={toggleMic} />
     </div>
   );
 }

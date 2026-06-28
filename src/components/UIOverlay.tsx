@@ -10,9 +10,10 @@ interface UIOverlayProps {
   timeElapsed: number;
   outcome: string | null;
   introIndex: number;
+  micEnabled?: boolean;
 }
 
-export function UIOverlay({ currentScene, timeElapsed, outcome, introIndex }: UIOverlayProps) {
+export function UIOverlay({ currentScene, timeElapsed, outcome, introIndex, micEnabled }: UIOverlayProps) {
   const { state, dispatch } = useGameState();
 
   const isIntro = state.currentState === GameState.SCENE_INTRO;
@@ -139,20 +140,31 @@ export function UIOverlay({ currentScene, timeElapsed, outcome, introIndex }: UI
 
         {isDecision && (
           <div className="text-center animate-fadeIn" style={{ animationDelay: '0.5s', animationFillMode: 'both' }}>
-            <div className="flex gap-12 items-center bg-black/70 px-8 py-4 rounded-xl backdrop-blur-md border border-gray-800 shadow-2xl">
+            <div className="flex gap-8 md:gap-12 items-center bg-black/70 px-6 py-4 md:px-8 rounded-xl backdrop-blur-md border border-gray-800 shadow-2xl">
               <div className="text-center">
-                <div className="w-14 h-14 rounded-lg border border-gray-400 bg-gray-800/80 flex items-center justify-center mb-2 animate-heartbeat" style={{ animationDuration: '2s' }}>
-                  <span className="text-xs text-white font-bold font-mono drop-shadow">TAP</span>
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg border border-gray-400 bg-gray-800/80 flex items-center justify-center mb-2 animate-heartbeat" style={{ animationDuration: '2s' }}>
+                  <span className="text-[10px] md:text-xs text-white font-bold font-mono drop-shadow">TAP</span>
                 </div>
-                <p className="text-[10px] tracking-[0.3em] uppercase text-gray-300 font-bold drop-shadow">De-escalate</p>
+                <p className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase text-gray-300 font-bold drop-shadow">De-escalate</p>
               </div>
-              <div className="text-gray-400 text-2xl font-display opacity-50">or</div>
+              <div className="text-gray-400 text-xl md:text-2xl font-display opacity-50">or</div>
               <div className="text-center">
-                <div className="w-14 h-14 rounded-lg border border-red-500 bg-red-900/80 flex items-center justify-center mb-2">
-                  <span className="text-xs text-white font-bold font-mono drop-shadow">HOLD</span>
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg border border-red-500 bg-red-900/80 flex items-center justify-center mb-2">
+                  <span className="text-[10px] md:text-xs text-white font-bold font-mono drop-shadow">HOLD</span>
                 </div>
-                <p className="text-[10px] tracking-[0.3em] uppercase text-red-400 font-bold drop-shadow">Fight</p>
+                <p className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase text-red-400 font-bold drop-shadow">Fight</p>
               </div>
+              {micEnabled && (
+                <>
+                  <div className="text-gray-400 text-xl md:text-2xl font-display opacity-50">or</div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg border border-orange-500 bg-orange-900/80 flex items-center justify-center mb-2">
+                      <span className="text-[10px] md:text-xs text-white font-bold font-mono drop-shadow">🎤</span>
+                    </div>
+                    <p className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase text-orange-400 font-bold drop-shadow">Shout</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

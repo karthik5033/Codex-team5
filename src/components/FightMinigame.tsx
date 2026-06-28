@@ -13,6 +13,8 @@ type Beat = {
   hit: boolean;
   missed: boolean;
   pulsed: boolean;
+  critical?: boolean;
+  hitTime?: number;
 };
 
 function generateBeats(bpm: number, patternType: string): number[] {
@@ -59,15 +61,18 @@ export function FightMinigame() {
   const [antagState, setAntagState] = useState<'idle' | 'attack' | 'damage'>('idle');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
+  const startRef = useRef<number>(0);
   const beatsRef = useRef<Beat[]>([]);
-  const startRef = useRef(0);
   const hitsRef = useRef(0);
   const lossRef = useRef(0);
-  const animRef = useRef(0);
-  const lastPulseElapsed = useRef(-9999);
-  const hitFlashElapsed = useRef(-9999);
-  const missFlashElapsed = useRef(-9999);
   const endDispatched = useRef(false);
+
+  // Timestamps for visual feedback
+  const hitFlashElapsed = useRef(-1000);
+  const missFlashElapsed = useRef(-1000);
+  const lastPulseElapsed = useRef(-1000);
+  const criticalFlashElapsed = useRef(-1000);
 
   const { bpm, patternType, lossMeterSize } = currentScene.fightConfig;
 
@@ -96,6 +101,36 @@ export function FightMinigame() {
     if (endDispatched.current) return;
     const elapsed = Date.now() - startRef.current;
 
+    // 1. Try to upgrade a recent hit to a critical hit (double tap)
+    let upgraded = false;
+    for (const beat of beatsRef.current) {
+      if (beat.hit && !beat.critical && beat.hitTime && elapsed - beat.hitTime <= 200 && Math.abs(elapsed - beat.timestamp) <= HIT_WINDOW) {
+        beat.critical = true;
+        hitsRef.current++;
+        setHitsLanded(hitsRef.current);
+        criticalFlashElapsed.current = elapsed;
+        upgraded = true;
+        break; // Only upgrade one
+      }
+    }
+
+    if (upgraded) {
+      // Trigger CSS animations for critical
+      setPlayerState('attack');
+      setAntagState('damage');
+      setTimeout(() => {
+        setPlayerState('idle');
+        setAntagState('idle');
+      }, 200);
+
+      if (hitsRef.current >= TOTAL_BEATS && !endDispatched.current) {
+        endDispatched.current = true;
+        dispatch({ type: 'TRANSITION', payload: GameState.SCENE_END });
+      }
+      return; // Handled as critical
+    }
+
+    // 2. Find closest new beat to hit
     let closest: Beat | null = null;
     let minDist = Infinity;
     for (const beat of beatsRef.current) {
@@ -109,6 +144,7 @@ export function FightMinigame() {
 
     if (closest) {
       closest.hit = true;
+      closest.hitTime = elapsed;
       hitsRef.current++;
       hitFlashElapsed.current = elapsed;
       setHitsLanded(hitsRef.current);
@@ -207,7 +243,7 @@ export function FightMinigame() {
         endDispatched.current = true;
         dispatch({
           type: 'TRANSITION',
-          payload: hitsRef.current >= TOTAL_BEATS ? GameState.SCENE_END : GameState.GAME_OVER,
+          payload: GameState.SCENE_END,
         });
         return;
       }
@@ -237,8 +273,11 @@ export function FightMinigame() {
       // Circle color based on recent events
       const sinceHit = elapsed - hitFlashElapsed.current;
       const sinceMiss = elapsed - missFlashElapsed.current;
+      const sinceCritical = elapsed - criticalFlashElapsed.current;
       let color: string;
-      if (sinceHit < 200) {
+      if (sinceCritical < 200) {
+        color = '#eab308'; // gold on critical
+      } else if (sinceHit < 200) {
         color = '#4ade80'; // green on hit
       } else if (sinceMiss < 200) {
         color = '#ffffff'; // white on miss
@@ -256,6 +295,24 @@ export function FightMinigame() {
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+
+      // Draw CRITICAL text
+      if (sinceCritical < 400) {
+        ctx.save();
+        const scale = 1 + sinceCritical / 200;
+        const alpha = 1 - sinceCritical / 400;
+        ctx.globalAlpha = Math.max(0, alpha);
+        ctx.fillStyle = '#eab308'; // yellow
+        ctx.font = 'bold 48px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.translate(cx, cy - 40 * scale);
+        ctx.scale(scale, scale);
+        ctx.shadowColor = '#ca8a04';
+        ctx.shadowBlur = 20;
+        ctx.fillText('CRITICAL!', 0, 0);
+        ctx.restore();
+      }
 
       animRef.current = requestAnimationFrame(loop);
     };
