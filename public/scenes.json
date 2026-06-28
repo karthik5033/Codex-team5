@@ -1,0 +1,69 @@
+[
+  {
+    "id": 1,
+    "name": "The Corner",
+    "decisionWindow": 6000,
+    "tapWindows": [
+      { "start": 0, "end": 2000, "outcome": "partial" },
+      { "start": 2000, "end": 4000, "outcome": "win" },
+      { "start": 4000, "end": 6000, "outcome": "fail" }
+    ],
+    "fightConfig": {
+      "lossMeterSize": 5,
+      "bpm": 80,
+      "patternType": "regular"
+    },
+    "dialogue": {
+      "intro": "A stranger steps out and blocks the path. He's testing you.",
+      "partial": "You flinch. He smirks, lets you pass. You lose face but survive.",
+      "win": "You hold your ground with a nod. He backs off.",
+      "fail": "You waited too long. He reads it as challenge.",
+      "timeout": "You hesitated. He reads it as challenge."
+    }
+  },
+  {
+    "id": 2,
+    "name": "The Crew",
+    "decisionWindow": 5000,
+    "tapWindows": [
+      { "start": 0, "end": 1500, "outcome": "fail" },
+      { "start": 1500, "end": 3500, "outcome": "win" },
+      { "start": 3500, "end": 5000, "outcome": "partial" }
+    ],
+    "fightConfig": {
+      "lossMeterSize": 4,
+      "bpm": 100,
+      "patternType": "two-track"
+    },
+    "dialogue": {
+      "intro": "Three guys are waiting. The calm one is speaking. The angry one keeps interrupting.",
+      "partial": "The angry one fills the silence. You've lost the conversation. They take something from you.",
+      "win": "You respond when the calm one pauses. He accepts it.",
+      "fail": "You interrupt the calm one. The angry one takes it as aggression.",
+      "timeout": "You stayed silent. The angry one takes it as aggression."
+    }
+  },
+  {
+    "id": 3,
+    "name": "The Roof",
+    "decisionWindow": 8000,
+    "tapWindows": [
+      { "start": 0, "end": 2000, "outcome": "partial" },
+      { "start": 2000, "end": 5000, "outcome": "win" },
+      { "start": 5000, "end": 8000, "outcome": "conditional_fail" }
+    ],
+    "fightConfig": {
+      "lossMeterSize": 3,
+      "bpm": 120,
+      "patternType": "irregular"
+    },
+    "dialogue": {
+      "intro": "A rooftop. Someone you know. The tension here is grief as much as anger.",
+      "partial": "You say something impulsive. It lands wrong. Relationship severed.",
+      "win": "You let him finish. You walk away. Cold but intact.",
+      "fail": "The silence becomes its own statement. He decides for you.",
+      "conditional_fail": "The silence becomes its own statement. He decides for you.",
+      "timeout": "The silence becomes its own statement. He decides for you."
+    }
+  }
+]

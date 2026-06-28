@@ -145,9 +145,47 @@ SCENE LOADS
 ## 7. Technical Architecture
 
 ### Stack
-- **Engine:** Vanilla JS + HTML5 Canvas (fastest to ship, no build system overhead)
+- **Framework:** Next.js 15 + React 19 (TypeScript)
+- **Rendering:** HTML5 Canvas (game loop) + React (UI overlay)
 - **Audio:** Web Audio API for beat generation + Howler.js for SFX
+- **Styling:** Tailwind CSS for UI frames
 - **Art:** Pixel art or high-contrast silhouettes (scope-realistic, atmosphere-appropriate)
+- **Build:** `npm run dev` → localhost:3000. Deploy-ready with `npm run build`
+
+### Component Architecture
+
+```
+app/
+├── page.tsx                    # Entry point
+├── components/
+│   ├── GameContainer.tsx       # Main wrapper, Canvas host
+│   ├── GameCanvas.tsx          # Canvas element + game loop lifecycle
+│   ├── UIOverlay.tsx           # Scene title, timer, outcome text
+│   ├── InputHandler.tsx        # Spacebar/click listener (custom hook)
+│   ├── FightMinigame.tsx       # Fight scene renderer (separate Canvas layer)
+│   └── GameOverScreen.tsx      # Restart prompt
+├── hooks/
+│   ├── useGameState.ts         # State machine (SCENE_INTRO, DECISION_WINDOW, etc.)
+│   ├── useInputHandler.ts      # Tap vs hold detection, timing
+│   └── useSceneManager.ts      # Scene progression, config loading
+├── lib/
+│   ├── gameState.ts            # GameState class
+│   ├── sceneManager.ts         # Scene loader, branching logic
+│   ├── inputDetector.ts        # Tap/hold logic (300ms threshold)
+│   └── fightEngine.ts          # Fight minigame beat detection, hit window
+├── public/
+│   ├── scenes.json             # Scene configs (1, 2, 3)
+│   └── assets/                 # Sprites, audio
+└── styles/
+    └── globals.css             # Tailwind + Canvas styling
+```
+
+**Why this structure:**
+- **GameContainer** orchestrates state between Canvas (game logic) and React (UI overlay)
+- **useGameState** is the single source of truth for state machine
+- **Hooks separate concerns:** input detection doesn't know about rendering, scene logic doesn't know about canvas
+- Canvas renders directly to avoid React re-render thrashing during game loop (60 FPS)
+- UI overlay (title, timer, outcome text) layers on top via React DOM
 
 ### State Machine
 
@@ -189,33 +227,49 @@ Each scene is a JSON config:
 ## 8. Team Responsibilities
 
 ### Adit — Core Systems (Claude Code)
-- State machine implementation
-- Input handler (tap vs. hold detection, timing logic)
-- Fight minigame engine (beat generation, hit detection, loss meter)
-- Scene loader (JSON config → runtime state)
-- Win/loss/partial outcome routing
+- GameState class & useGameState hook (state machine)
+- Input detection hook (tap vs. hold, 300ms threshold, timing timestamps)
+- Scene manager & config loader (scenes.json → runtime state)
+- Fight minigame engine (beat generation, hit detection, loss meter logic)
+- Game loop lifecycle (requestAnimationFrame, canvas draw calls)
+- GameCanvas component (render loop host, state sync)
 
-**Deliverable priority:** State machine + input handler first. Fight minigame second. Scene loader third.
+**Deliverable priority:** 
+1. useGameState hook + state machine logic
+2. useInputHandler hook (tap/hold detection working in console)
+3. useSceneManager hook (Scene 1 config loads and progresses)
+4. GameCanvas component with placeholder render
+5. Fight minigame engine (beat detection only, no visuals yet)
 
 ### Codex Person 1 — Scene Logic & Tension System
-- Tension curve per scene (the visual/audio state that rises and falls during decision window)
-- Tap outcome branching per scene (dialogue/animation triggers based on timing)
+- useSceneManager branching logic (tap window outcomes per scene)
+- Tension curve state (what rises/falls during decision window)
 - Scene 3 conditional logic (outcome depends on Scene 2 performance)
-- Timeout / no-input penalty handler
-- Scene transition screens (text overlays, narrative cards)
+- UIOverlay component (displays title, timer countdown, outcome text)
+- Scene transition screens (text cards, narrative flow)
+- scenes.json config for all 3 scenes
 
-**Deliverable priority:** Scene 1 tension curve first (needed for integration). Branching logic second. Scene 3 conditional last.
+**Deliverable priority:** 
+1. Scene 1 config complete (tapWindows, fightConfig)
+2. UIOverlay component rendering title + timer
+3. Scene 2 & 3 configs
+4. Scene 3 conditional routing
+5. Transition screen text overlays
 
 ### Codex Person 2 — Art, Audio & UI
 - Character sprites / silhouettes (3 scenes × protagonist + antagonist(s))
 - Scene backgrounds (corner / street / rooftop)
-- Fight screen layout (brawl visual, beat cue animation, loss meter)
-- Beat cue visual design (the pulse/flash that cues the player)
-- SFX: ambient, hit sounds, beat track per scene
-- Game Over / Win screens
-- Font and UI frame
+- FightMinigame component (beat cue animation, loss meter visual)
+- SFX: ambient per scene, hit sounds, beat track generation
+- GameOverScreen component (game over + restart button)
+- Global styles (Tailwind), canvas styling, font choices
 
-**Deliverable priority:** Scene 1 assets first (needed for integration). Fight screen second. Scenes 2–3 third.
+**Deliverable priority:** 
+1. Scene 1 background + character sprites
+2. FightMinigame beat cue visual (animated pulse/flash)
+3. GameOverScreen + win screen components
+4. SFX integration (ambient, hit sounds)
+5. Scenes 2–3 assets
 
 ---
 
