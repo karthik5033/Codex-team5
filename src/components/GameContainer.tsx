@@ -106,7 +106,7 @@ export function GameContainer() {
         return;
       }
     },
-    [state.currentState, evaluateTap, outcome, currentScene, dispatch, lockInput, isLocked]
+    [state.currentState, evaluateTap, outcome, currentScene, dispatch, lockInput, isLocked, introIndex]
   );
 
   // Active for every state EXCEPT fight active (FightMinigame has its own handler)
