@@ -14,11 +14,11 @@
       "patternType": "regular"
     },
     "dialogue": {
-      "intro": "A stranger steps out and blocks the path. He's testing you.",
-      "partial": "You flinch. He smirks, lets you pass. You lose face but survive.",
-      "win": "You hold your ground with a nod. He backs off.",
-      "fail": "You waited too long. He reads it as challenge.",
-      "timeout": "You hesitated. He reads it as challenge."
+      "intro": { "speaker": "antagonist", "text": "You're walking the wrong street tonight, friend." },
+      "partial": { "speaker": "player", "text": "Whoa, take it easy. I'm just passing through." },
+      "win": { "speaker": "player", "text": "Step aside." },
+      "fail": { "speaker": "antagonist", "text": "Too slow to speak, too slow to fight." },
+      "timeout": { "speaker": "antagonist", "text": "Cat got your tongue?" }
     }
   },
   {
@@ -36,11 +36,11 @@
       "patternType": "two-track"
     },
     "dialogue": {
-      "intro": "Three guys are waiting. The calm one is speaking. The angry one keeps interrupting.",
-      "partial": "The angry one fills the silence. You've lost the conversation. They take something from you.",
-      "win": "You respond when the calm one pauses. He accepts it.",
-      "fail": "You interrupt the calm one. The angry one takes it as aggression.",
-      "timeout": "You stayed silent. The angry one takes it as aggression."
+      "intro": { "speaker": "antagonist", "text": "Look who decided to show up. Empty your pockets." },
+      "partial": { "speaker": "player", "text": "Just take what you need and let me go." },
+      "win": { "speaker": "player", "text": "I'm not looking for trouble. But I ain't backing down." },
+      "fail": { "speaker": "antagonist", "text": "Shut your mouth and put 'em up!" },
+      "timeout": { "speaker": "antagonist", "text": "We're done waiting!" }
     }
   },
   {
@@ -58,12 +58,12 @@
       "patternType": "irregular"
     },
     "dialogue": {
-      "intro": "A rooftop. Someone you know. The tension here is grief as much as anger.",
-      "partial": "You say something impulsive. It lands wrong. Relationship severed.",
-      "win": "You let him finish. You walk away. Cold but intact.",
-      "fail": "The silence becomes its own statement. He decides for you.",
-      "conditional_fail": "The silence becomes its own statement. He decides for you.",
-      "timeout": "The silence becomes its own statement. He decides for you."
+      "intro": { "speaker": "antagonist", "text": "It all comes down to this. Nothing left to say." },
+      "partial": { "speaker": "player", "text": "We don't have to do this. We used to be friends." },
+      "win": { "speaker": "player", "text": "It's over. I'm walking away." },
+      "fail": { "speaker": "antagonist", "text": "Silence. I knew you'd never change." },
+      "conditional_fail": { "speaker": "antagonist", "text": "I can see the fear in your eyes." },
+      "timeout": { "speaker": "antagonist", "text": "No words? Then let our fists do the talking." }
     }
   }
 ]

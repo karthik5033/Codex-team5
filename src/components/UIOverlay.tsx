@@ -18,7 +18,7 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
   const isDecision = state.currentState === GameState.DECISION_WINDOW;
   const isOutcome = state.currentState === GameState.OUTCOME_TAP;
 
-  // Auto-advance from intro after 3 seconds — no button click needed
+  // Auto-advance from intro after 3 seconds
   useEffect(() => {
     if (!isIntro) return;
     const timer = setTimeout(() => {
@@ -41,6 +41,15 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
   );
 
   if (!isDecision && !isIntro && !isOutcome) return null;
+
+  // Determine current dialogue line based on state
+  let currentDialogueObj = null;
+  if (isIntro) {
+    currentDialogueObj = currentScene.dialogue.intro;
+  } else if (isOutcome && outcome) {
+    // @ts-ignore - TS might complain about dynamic key access
+    currentDialogueObj = currentScene.dialogue[outcome] || currentScene.dialogue.fail;
+  }
 
   // Render Background
   const bgImage = 
@@ -114,50 +123,42 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
 
       {/* ── Center Content ────────────────── */}
       <div className="flex-1 flex items-center justify-center z-10 w-full">
+        {/* We now ALWAYS render ImageScene for Intro, Decision, and Outcome, 
+            so characters stay on screen and can speak via speech bubbles. */}
+        <div className="w-full text-center animate-fadeIn" style={{ animationDelay: isIntro ? '0s' : '0.3s', animationFillMode: 'both' }}>
+          <ImageScene 
+            sceneId={currentScene.id} 
+            tension={tensionRatio} 
+            dialogueObj={currentDialogueObj}
+          />
+        </div>
+      </div>
+
+      {/* ── Bottom Prompts ────────────────── */}
+      <div className="w-full p-6 md:p-10 flex justify-center z-10 h-32 items-end">
         {isIntro && (
-          <div className="text-center max-w-2xl px-8 animate-slideUp">
-            <div className="relative p-8 rounded-lg border border-gray-600/50 bg-black/70 backdrop-blur-md shadow-2xl">
-              <p className="text-xl md:text-2xl text-gray-200 italic leading-relaxed">
-                &ldquo;{currentScene.dialogue.intro}&rdquo;
-              </p>
-            </div>
-            <p className="text-gray-500 text-xs uppercase tracking-widest mt-6 animate-pulse">
-              Preparing&hellip;
+          <div className="animate-fadeIn">
+            <p className="text-gray-400 text-xs uppercase tracking-[0.3em] font-bold animate-pulse drop-shadow-md">
+              Get Ready&hellip;
             </p>
           </div>
         )}
 
         {isDecision && (
-          <div className="w-full text-center animate-fadeIn" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
-            <ImageScene sceneId={currentScene.id} tension={tensionRatio} />
-          </div>
-        )}
-
-        {isOutcome && outcome && (
-          <OutcomeDisplay
-            outcome={outcome}
-            dialogue={currentScene.dialogue[outcome as keyof typeof currentScene.dialogue] || currentScene.dialogue.fail}
-          />
-        )}
-      </div>
-
-      {/* ── Bottom Prompts ────────────────── */}
-      <div className="w-full p-6 md:p-10 flex justify-center z-10">
-        {isDecision && (
           <div className="text-center animate-fadeIn" style={{ animationDelay: '0.5s', animationFillMode: 'both' }}>
-            <div className="flex gap-12 items-center bg-black/60 px-8 py-4 rounded-xl backdrop-blur-sm border border-gray-800">
+            <div className="flex gap-12 items-center bg-black/70 px-8 py-4 rounded-xl backdrop-blur-md border border-gray-800 shadow-2xl">
               <div className="text-center">
-                <div className="w-14 h-14 rounded-lg border border-gray-500 bg-gray-800/80 flex items-center justify-center mb-2 animate-heartbeat" style={{ animationDuration: '2s' }}>
-                  <span className="text-xs text-white font-bold font-mono">TAP</span>
+                <div className="w-14 h-14 rounded-lg border border-gray-400 bg-gray-800/80 flex items-center justify-center mb-2 animate-heartbeat" style={{ animationDuration: '2s' }}>
+                  <span className="text-xs text-white font-bold font-mono drop-shadow">TAP</span>
                 </div>
-                <p className="text-[10px] tracking-[0.3em] uppercase text-gray-300">De-escalate</p>
+                <p className="text-[10px] tracking-[0.3em] uppercase text-gray-300 font-bold drop-shadow">De-escalate</p>
               </div>
-              <div className="text-gray-400 text-2xl font-display">or</div>
+              <div className="text-gray-400 text-2xl font-display opacity-50">or</div>
               <div className="text-center">
                 <div className="w-14 h-14 rounded-lg border border-red-500 bg-red-900/80 flex items-center justify-center mb-2">
-                  <span className="text-xs text-white font-bold font-mono">HOLD</span>
+                  <span className="text-xs text-white font-bold font-mono drop-shadow">HOLD</span>
                 </div>
-                <p className="text-[10px] tracking-[0.3em] uppercase text-red-400">Fight</p>
+                <p className="text-[10px] tracking-[0.3em] uppercase text-red-400 font-bold drop-shadow">Fight</p>
               </div>
             </div>
           </div>
@@ -166,7 +167,7 @@ export function UIOverlay({ currentScene, timeElapsed, outcome }: UIOverlayProps
         {isOutcome && (
           <OneButtonPrompt
             text={outcome === 'fail' || outcome === 'timeout' || outcome === 'conditional_fail' ? 'PRESS SPACE TO FIGHT' : 'PRESS SPACE TO CONTINUE'}
-            delayMs={1200}
+            delayMs={800}
             glow={outcome === 'fail' || outcome === 'timeout' || outcome === 'conditional_fail'}
           />
         )}
@@ -191,10 +192,10 @@ function OneButtonPrompt({
       style={{ animationDelay: `${delayMs}ms`, animationFillMode: 'both' }}
     >
       <div
-        className={`inline-block px-8 py-3 border-2 bg-black/70 backdrop-blur-md font-display text-xl tracking-[0.3em] uppercase shadow-lg
+        className={`inline-block px-8 py-3 border-2 bg-black/80 backdrop-blur-md font-display text-xl tracking-[0.3em] uppercase shadow-2xl
           ${glow
             ? 'border-red-600 text-red-500 animate-pulseGlow'
-            : 'border-gray-600 text-gray-300'
+            : 'border-gray-500 text-white'
           }`}
       >
         {text}
@@ -203,8 +204,42 @@ function OneButtonPrompt({
   );
 }
 
+/* ── Comic Speech Bubble ──────────────────── */
+function SpeechBubble({ text, speaker }: { text: string; speaker: 'player' | 'antagonist' }) {
+  const isPlayer = speaker === 'player';
+  
+  return (
+    <div 
+      className={`absolute top-0 -mt-16 md:-mt-24 z-50 max-w-[250px] md:max-w-[320px] 
+        ${isPlayer ? 'right-0 -mr-10' : 'left-0 -ml-10'} animate-slideUp`}
+      style={{ filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.5))' }}
+    >
+      <div className={`relative bg-white text-black p-4 md:p-6 rounded-2xl border-4 border-black font-bold italic leading-tight text-sm md:text-base`}>
+        {text}
+        
+        {/* Tail */}
+        <div 
+          className={`absolute bottom-[-16px] w-0 h-0 border-l-[12px] border-l-transparent border-t-[16px] border-t-white border-r-[12px] border-r-transparent ${isPlayer ? 'left-8' : 'right-8'}`} 
+        />
+        {/* Tail Border (underneath) */}
+        <div 
+          className={`absolute bottom-[-22px] w-0 h-0 border-l-[16px] border-l-transparent border-t-[22px] border-t-black border-r-[16px] border-r-transparent -z-10 ${isPlayer ? 'left-7' : 'right-7'}`} 
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ── Cartoon Sprite Scene ─────────────────── */
-function ImageScene({ sceneId, tension }: { sceneId: number; tension: number }) {
+function ImageScene({ 
+  sceneId, 
+  tension, 
+  dialogueObj 
+}: { 
+  sceneId: number; 
+  tension: number; 
+  dialogueObj: { speaker: string, text: string } | null;
+}) {
   const shakeIntensity = tension > 0.7 ? 'animate-glitch' : '';
   
   // Decide which antagonist image to use based on scene
@@ -220,10 +255,13 @@ function ImageScene({ sceneId, tension }: { sceneId: number; tension: number }) 
 
   return (
     <div className={`relative w-full max-w-5xl mx-auto ${shakeIntensity}`}>
-      <div className="flex items-center justify-between px-4 md:px-20">
+      <div className="flex items-center justify-between px-4 md:px-20 relative">
         
         {/* ── Player Sprite ── */}
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center relative">
+          {dialogueObj && dialogueObj.speaker === 'player' && (
+            <SpeechBubble text={dialogueObj.text} speaker="player" />
+          )}
           <div className="relative w-48 h-48 md:w-64 md:h-64 rounded-xl overflow-hidden border-4 border-gray-800 shadow-2xl"
                style={{ animation: 'slideUp 0.6s ease-out, heartbeat 4s ease-in-out infinite' }}>
             <Image 
@@ -234,13 +272,13 @@ function ImageScene({ sceneId, tension }: { sceneId: number; tension: number }) 
               style={{ filter: `brightness(${1 - tension * 0.3}) grayscale(${tension * 0.5})` }}
             />
           </div>
-          <div className="mt-4 bg-black/80 px-6 py-2 border border-gray-700 rounded backdrop-blur-sm">
+          <div className="mt-4 bg-black/80 px-6 py-2 border border-gray-700 rounded backdrop-blur-sm z-10">
             <p className="text-sm font-bold tracking-[0.4em] uppercase text-gray-300">You</p>
           </div>
         </div>
 
         {/* ── VS text ── */}
-        <div className="flex-shrink-0 z-10 px-4">
+        <div className="flex-shrink-0 z-10 px-4 mt-8">
           <div
             className="font-display text-6xl md:text-8xl tracking-widest drop-shadow-[0_0_20px_rgba(220,38,38,0.8)]"
             style={{
@@ -254,7 +292,10 @@ function ImageScene({ sceneId, tension }: { sceneId: number; tension: number }) 
         </div>
 
         {/* ── Antagonist Sprite ── */}
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center relative">
+          {dialogueObj && dialogueObj.speaker === 'antagonist' && (
+            <SpeechBubble text={dialogueObj.text} speaker="antagonist" />
+          )}
           <div className="relative w-48 h-48 md:w-64 md:h-64 rounded-xl overflow-hidden border-4 border-red-900 shadow-2xl"
                style={{ animation: 'fadeIn 0.8s ease-out, heartbeat 3.5s ease-in-out infinite reverse' }}>
             <Image 
@@ -265,75 +306,11 @@ function ImageScene({ sceneId, tension }: { sceneId: number; tension: number }) 
               style={{ filter: `brightness(${1 + tension * 0.2}) contrast(${1 + tension * 0.5})` }}
             />
           </div>
-          <div className="mt-4 bg-red-950/80 px-6 py-2 border border-red-800 rounded backdrop-blur-sm">
+          <div className="mt-4 bg-red-950/80 px-6 py-2 border border-red-800 rounded backdrop-blur-sm z-10">
             <p className="text-sm font-bold tracking-[0.4em] uppercase text-red-400">{antagonistName}</p>
           </div>
         </div>
         
-      </div>
-    </div>
-  );
-}
-
-/* ── Outcome Display ──────────────────────── */
-function OutcomeDisplay({
-  outcome,
-  dialogue,
-}: {
-  outcome: string;
-  dialogue: string;
-}) {
-  const colorMap: Record<string, { border: string; bg: string; text: string; badge: string; label: string }> = {
-    win: {
-      border: 'border-green-600/50',
-      bg: 'bg-green-950/70',
-      text: 'text-green-200',
-      badge: 'bg-green-900 text-green-300 border-green-700',
-      label: 'RESOLUTION',
-    },
-    partial: {
-      border: 'border-yellow-600/50',
-      bg: 'bg-yellow-950/70',
-      text: 'text-yellow-100',
-      badge: 'bg-yellow-900 text-yellow-300 border-yellow-700',
-      label: 'COMPROMISE',
-    },
-    fail: {
-      border: 'border-red-600/50',
-      bg: 'bg-red-950/70',
-      text: 'text-red-200',
-      badge: 'bg-red-900 text-red-300 border-red-700',
-      label: 'ESCALATION',
-    },
-    timeout: {
-      border: 'border-red-600/50',
-      bg: 'bg-red-950/70',
-      text: 'text-red-200',
-      badge: 'bg-red-900 text-red-300 border-red-700',
-      label: 'HESITATION',
-    },
-    conditional_fail: {
-      border: 'border-red-600/50',
-      bg: 'bg-red-950/70',
-      text: 'text-red-200',
-      badge: 'bg-red-900 text-red-300 border-red-700',
-      label: 'UNPREPARED',
-    },
-  };
-
-  const style = colorMap[outcome] || colorMap.fail;
-
-  return (
-    <div className="text-center max-w-2xl px-8 animate-slideUp">
-      <div className={`relative p-8 rounded-lg border-2 ${style.border} ${style.bg} backdrop-blur-md shadow-2xl`}>
-        <span
-          className={`inline-block px-4 py-1 rounded border text-xs tracking-[0.4em] uppercase font-bold mb-6 ${style.badge}`}
-        >
-          {style.label}
-        </span>
-        <p className={`text-2xl md:text-3xl italic leading-relaxed font-semibold ${style.text}`}>
-          &ldquo;{dialogue}&rdquo;
-        </p>
       </div>
     </div>
   );
